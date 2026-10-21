@@ -1,0 +1,278 @@
+<title>Skytide Sandbox</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Saira:wght@500;600;700&display=swap">
+<style>
+  /* Layout: full-bleed sky canvas; instruments pinned to the four corners like a cockpit. */
+  :root {
+    --night: #060a18;          /* page ground behind the canvas */
+    --glass: rgba(8, 14, 30, 0.62);
+    --glass-strong: rgba(8, 14, 30, 0.86);
+    --ink: #eaf3f7;
+    --ink-dim: #9fb4c4;
+    --line: rgba(150, 215, 230, 0.2);
+    --skin: #3ff0cc;           /* the ridable skin glow, the accent */
+    --amber: #ffb547;
+    --danger: #ff5468;
+    --sky: #8cc4ff;
+    --font-display: "Saira", "Avenir Next Condensed", "Arial Narrow", system-ui, sans-serif;
+    --font-data: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    --gap: 12px;
+    color-scheme: dark;
+  }
+  [hidden] { display: none !important; }
+  html, body { height: 100%; }
+  body { background: var(--night); color: var(--ink); overflow: hidden; font-family: var(--font-display); }
+  #view { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+  body.framed { background: #000; }   /* the bars round a 16:9 or 4:3 picture */
+
+  #hud { position: fixed; inset: 0; pointer-events: none; font-variant-numeric: tabular-nums; }
+  #hud section { position: absolute; }
+  .readout {
+    top: calc(env(safe-area-inset-top, 0px) + 14px); left: calc(env(safe-area-inset-left, 0px) + 14px);
+    width: min(320px, calc(100vw - 28px)); padding: 14px 16px 12px; border-radius: 10px;
+    background: var(--glass); border: 1px solid var(--line); backdrop-filter: blur(6px);
+    display: grid; gap: 10px;
+  }
+  .state-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .chip {
+    font-weight: 700; font-size: 13px; letter-spacing: 0.12em; text-transform: uppercase;
+    padding: 3px 10px; border-radius: 999px; color: var(--night); background: var(--skin);
+  }
+  .chip[data-kind="skimming"] { background: #9df7e6; }
+  .chip[data-kind="drifting"] { background: var(--sky); }
+  .chip[data-kind="updraft"] { background: #b8dcff; }
+  .chip[data-kind="freefall"] { background: var(--ink); }
+  .chip[data-kind="flying"] { background: #ffd27a; color: #1b1a12; }
+  .chip[data-kind="set"] { background: var(--amber); }
+  .chip[data-kind="wipeout"] { background: var(--danger); color: var(--ink); }
+  .layer { font-family: var(--font-data); font-size: 12px; color: var(--ink-dim); }
+  .brace-pill { font-family: var(--font-data); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line); color: var(--ink-dim); }
+  .brace-pill.on { color: var(--night); background: #ffe08a; border-color: #ffe08a; }
+  .brace-pill.lock { color: var(--night); background: #8af3ff; border-color: #8af3ff; }
+  .speed { display: flex; align-items: baseline; gap: 6px; line-height: 1; }
+  #hud-speed { font-size: 54px; font-weight: 600; letter-spacing: -0.02em; min-width: 2.2ch; }
+  .unit { font-size: 16px; color: var(--ink-dim); font-weight: 500; }
+  .kmh { margin-left: auto; font-family: var(--font-data); font-size: 12px; color: var(--ink-dim); }
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 0; }
+  .stats div { display: grid; gap: 2px; min-width: 0; }
+  .stats dt { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-dim); }
+  .stats dd { margin: 0; font-family: var(--font-data); font-size: 15px; }
+  .stats dd.warn { color: var(--danger); }
+  .density { display: grid; gap: 5px; }
+  .density-label { display: flex; justify-content: space-between; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-dim); }
+  .density-label span:last-child { font-family: var(--font-data); letter-spacing: 0; text-transform: none; color: var(--ink); }
+  .bar { position: relative; height: 8px; border-radius: 4px; background: rgba(140, 196, 255, 0.14); overflow: visible; }
+  .fill { position: absolute; inset: 0 auto 0 0; width: 0; border-radius: 4px; background: var(--sky); opacity: 0.75; }
+  .fill.ok { background: var(--skin); opacity: 1; }
+  .mark { position: absolute; top: -3px; bottom: -3px; width: 2px; margin-left: -1px; border-radius: 1px; }
+  .mark.base { background: var(--amber); }
+  .mark.now { background: var(--ink); box-shadow: 0 0 6px var(--skin); }
+  .density-legend { display: flex; gap: 12px; font-size: 11px; color: var(--ink-dim); }
+  .sw { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
+  .sw.now { background: var(--ink); box-shadow: 0 0 4px var(--skin); }
+  .sw.base { background: var(--amber); }
+  .gauge { display: grid; gap: 5px; }
+  .gauge-bar { height: 6px; }
+  .fill.boost { background: #c89bff; opacity: 1; }
+  .fill.boost.on { background: #e9d7ff; box-shadow: 0 0 10px #c89bff; }
+  .reach { font-family: var(--font-data); font-size: 12px; color: var(--ink-dim); min-height: 1em; }
+  .fill.hold { background: #6ff0d0; opacity: 1; }
+  .fill.hold.low { background: var(--danger); }
+  .mark.need { background: #ffffff; }
+  .reach[data-kind="climb"] { color: #d9c2ff; }
+  .reach[data-kind="rescue"] { color: #ffd27a; }
+  .reach[data-kind="none"] { color: var(--danger); }
+  .route { margin-top: 8px; font-size: 12px; color: #ffd27a; letter-spacing: 0.01em; }
+  .conditions { display: grid; gap: 3px; padding-top: 8px; border-top: 1px solid var(--line); font-size: 12px; }
+  .cond-row { display: grid; grid-template-columns: 48px 1fr; gap: 8px; min-width: 0; }
+  .cond-row span:last-child { font-family: var(--font-data); color: var(--ink); min-width: 0; overflow-wrap: anywhere; }
+  .cond-k { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-dim); }
+
+  .status {
+    right: calc(env(safe-area-inset-right, 0px) + 14px); bottom: calc(env(safe-area-inset-bottom, 0px) + 14px);
+    display: grid; gap: 8px; justify-items: end; max-width: calc(100vw - 28px); pointer-events: auto;
+  }
+  .pad { font-size: 13px; padding: 6px 10px; border-radius: 8px; background: var(--glass); border: 1px solid var(--line); color: var(--ink-dim); text-align: right; }
+  .pad.connected { color: var(--ink); border-color: rgba(63, 240, 204, 0.5); }
+  .pad.connected::before { content: ""; display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--skin); margin-right: 7px; vertical-align: 1px; }
+  .meta { display: flex; gap: 12px; font-family: var(--font-data); font-size: 11px; color: var(--ink-dim); }
+  .buttons { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+  .buttons button, #help-close {
+    font: 600 13px var(--font-display); letter-spacing: 0.04em; color: var(--ink);
+    background: var(--glass-strong); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; cursor: pointer;
+  }
+  .buttons button:hover, #help-close:hover { border-color: var(--skin); }
+  button:focus-visible { outline: 2px solid var(--skin); outline-offset: 2px; }
+  kbd { font-family: var(--font-data); font-size: 11px; color: var(--ink-dim); margin-left: 4px; }
+
+  .banner {
+    left: 50%; bottom: 22%; transform: translateX(-50%); text-align: center;
+    display: grid; gap: 2px; padding: 10px 22px; border-radius: 12px; background: var(--glass-strong); border: 1px solid var(--line);
+  }
+  .banner strong { font-size: 28px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; }
+  .banner span { font-family: var(--font-data); font-size: 13px; color: var(--ink-dim); }
+  .banner[data-kind="clean"] strong { color: var(--skin); }
+  .banner[data-kind="sketchy"] strong { color: var(--amber); }
+  .banner[data-kind="wipeout"] strong { color: var(--danger); }
+  .banner.pop { animation: pop 0.35s cubic-bezier(.2,1.4,.4,1); }
+  @keyframes pop { from { transform: translateX(-50%) scale(0.85); opacity: 0.2; } to { transform: translateX(-50%) scale(1); opacity: 1; } }
+  .guide {
+    left: 50%; top: calc(env(safe-area-inset-top, 0px) + 14px); transform: translateX(-50%);
+    display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 12px;
+    width: min(520px, calc(100vw - 28px)); padding: 8px 14px; border-radius: 12px;
+    background: var(--glass-strong); border: 1px solid rgba(255, 196, 74, 0.45);
+  }
+  .guide .g-icon { font-size: 28px; line-height: 1; color: #ffc44a; width: 34px; text-align: center; }
+  .guide .g-text { display: grid; gap: 1px; min-width: 0; }
+  .guide strong { font-size: 17px; font-weight: 600; letter-spacing: 0.01em; overflow-wrap: anywhere; }
+  .guide .g-text span { font-family: var(--font-data); font-size: 11px; color: var(--ink-dim); overflow-wrap: anywhere; }
+  .guide .g-dist { font-family: var(--font-data); font-size: 18px; color: #ffd27a; white-space: nowrap; }
+  .guide[data-kind="drop"] { border-color: rgba(200, 240, 255, 0.6); }
+  .guide[data-kind="drop"] .g-icon, .guide[data-kind="drop"] .g-dist { color: #cdf3ff; }
+  .guide[data-kind="now"] { border-color: #ffc44a; box-shadow: 0 0 0 2px rgba(255, 196, 74, 0.35); }
+  .guide:not([hidden]) ~ .notice { top: calc(env(safe-area-inset-top, 0px) + 84px); }
+  @media (max-width: 1180px) {
+    .guide { left: 384px; right: 14px; top: calc(env(safe-area-inset-top, 0px) + 52px); width: auto; transform: none; gap: 8px; padding: 6px 10px; }
+    .guide:not([hidden]) ~ .notice { top: calc(env(safe-area-inset-top, 0px) + 112px); }
+    .guide strong { font-size: 15px; }
+    .guide .g-icon { font-size: 22px; width: 26px; }
+    .guide .g-dist { font-size: 15px; }
+  }
+  @media (max-width: 760px) { .guide { left: 14px; right: 14px; top: auto; bottom: calc(env(safe-area-inset-bottom, 0px) + 150px); } }
+  .notice {
+    left: 50%; top: calc(env(safe-area-inset-top, 0px) + 16px); transform: translateX(-50%);
+    padding: 8px 16px; border-radius: 8px; background: var(--glass-strong); border: 1px solid var(--line); font-size: 15px; font-weight: 600;
+  }
+  .runbar {
+    left: calc(env(safe-area-inset-left, 0px) + 14px); bottom: calc(env(safe-area-inset-bottom, 0px) + 14px);
+    font-family: var(--font-data); font-size: 11px; color: var(--ink-dim); max-width: calc(100vw - 28px);
+    padding: 6px 10px; border-radius: 8px; background: var(--glass);
+  }
+  @media (max-width: 980px) { .runbar { display: none; } }
+  .slice-label { left: 14px; font-size: 12px; color: var(--ink-dim); padding: 4px 8px; border-radius: 6px; background: var(--glass); }
+  .slice-label .t { color: var(--skin); font-weight: 600; }
+  .slice-label .a { color: var(--amber); font-weight: 600; }
+
+  #help {
+    position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%);
+    width: min(640px, calc(100vw - 32px)); max-height: calc(100% - 40px); overflow: auto;
+    padding: 20px 22px; border-radius: 14px; background: var(--glass-strong); border: 1px solid var(--line); backdrop-filter: blur(8px);
+    display: grid; gap: 14px;
+  }
+  #help h1 { margin: 0; font-size: 26px; font-weight: 700; letter-spacing: 0.02em; text-wrap: balance; }
+  #help p { margin: 0; color: var(--ink-dim); font-size: 15px; line-height: 1.45; max-width: 60ch; }
+  .controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 16px; }
+  .controls h2 { margin: 0 0 6px; font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--skin); }
+  .controls dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 5px 12px; font-size: 14px; }
+  .controls dt { font-family: var(--font-data); font-size: 12px; color: var(--ink); white-space: nowrap; }
+  .controls dd { margin: 0; color: var(--ink-dim); }
+  .help-foot { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .help-foot span { font-size: 13px; color: var(--ink-dim); }
+
+  #loading {
+    position: fixed; inset: 0; display: grid; place-content: center; gap: 14px; justify-items: center;
+    background: radial-gradient(120% 90% at 50% 110%, #2a3a6a 0%, #0b1330 55%, var(--night) 100%);
+    padding-inline: max(16px, env(safe-area-inset-left, 0px)) max(16px, env(safe-area-inset-right, 0px));
+    text-align: center;
+  }
+  #loading h1 { margin: 0; font-size: 34px; font-weight: 700; letter-spacing: 0.04em; }
+  #loading p { margin: 0; color: var(--ink-dim); font-size: 15px; max-width: 46ch; }
+  .loadbar { width: min(320px, 80vw); height: 6px; border-radius: 3px; background: rgba(140, 196, 255, 0.15); overflow: hidden; }
+  #loading-fill { height: 100%; width: 0; background: var(--skin); transition: width 0.15s; }
+  #loading.error #loading-status { color: var(--danger); }
+
+  /* Tuning panel (lil-gui) restyled to match. */
+  .lil-gui.tuning {
+    --background-color: rgba(8, 14, 30, 0.9); --text-color: var(--ink); --title-background-color: rgba(14, 24, 48, 0.95);
+    --title-text-color: var(--ink); --widget-color: rgba(140, 196, 255, 0.16); --hover-color: rgba(140, 196, 255, 0.26);
+    --focus-color: rgba(63, 240, 204, 0.3); --number-color: var(--skin); --string-color: var(--amber);
+    --font-family: var(--font-display); --font-family-mono: var(--font-data); --font-size: 12px; --input-font-size: 12px;
+    --widget-height: 22px; --name-width: 48%;
+    top: calc(env(safe-area-inset-top, 0px) + 14px) !important; right: calc(env(safe-area-inset-right, 0px) + 14px) !important;
+    max-height: calc(100% - 150px) !important; border: 1px solid var(--line); border-radius: 10px; overflow: auto;
+    pointer-events: auto; z-index: 5;
+  }
+  .tuning-status { padding: 4px 8px 8px; font-size: 12px; color: var(--ink-dim); min-height: 1em; }
+
+  @media (max-width: 560px) {
+    .readout { padding: 10px 12px; gap: 8px; width: min(250px, calc(100vw - 28px)); }
+    #hud-speed { font-size: 40px; }
+    .conditions { display: none; }
+    .runbar { display: none; }
+    .lil-gui.tuning { width: calc(100vw - 28px) !important; }
+  }
+  @media (max-height: 720px) { .density-legend, .stats { display: none; } .readout { gap: 7px; padding-block: 10px; } }
+  @media (max-height: 520px) { .conditions { display: none; } }
+  @media (prefers-reduced-motion: reduce) { .banner.pop { animation: none; } #loading-fill { transition: none; } }
+</style>
+
+<canvas id="view" aria-label="Sky sandbox view"></canvas>
+<div id="hud"></div>
+
+<section id="help" aria-label="Controls">
+  <h1>Skytide sandbox</h1>
+  <p>The sky holds three layers of trapar, each a root system of its own: the tangle (lowest: tight, dense, slower, wrapped in cords, with only the floor below it), the main layer, and the crown (highest: wide cells, long sweeping fast streams, spiral loops and drops, open sky). They roll and drift about 430 m apart and pinch close together in places. Connectors cross between them everywhere: updrafts (gold) are narrow fast streams that flow up in cascades of steep surges and flat ledges (pop off a crest for air), some winding up as tight corkscrews; chutes (violet) plunge steeply from a layer onto the one below; ramps run long and gentle either way, some as wide spirals; and drops end in a kicker aimed over the layer below. Falling is part of riding: off a drop, a lip or anywhere, you level off at about 60 m/s. Once you are falling with nothing close below you are in free fall, and boost flies you where the board's nose points: level, slowing your fall to a glide, the flight following the nose as you lean it round (forward dives, back flares). The boost target marks a stream you can reach; let go once the landing marker sits on it. Catch a stream cleanly (brace just before you land) and most of the fall becomes speed along it.</p>
+  <p>Floating islands sit in the layers and between them. Land on one (on your board you step off; falling, you land on your feet), walk and run around it, and leave by a dock (walk onto the glowing stream, press Y to step onto it and it carries you off to a trunk), by a launch lip that kicks you over a stream below, or by jumping off the edge. Press Y while riding to jump off your board: you skydive as yourself, the stick moving you where you want to fall (hold A to dive head first). Streams do not hold you without your board, so press Y again to call it back: it flies to your feet and you are on it, falling, where boost flies you. Press D-pad right (N) for a route: a gold beam marks an island a few kilometers off, and the clock runs until you stand on it. A trail of chevrons shows a way there through the network (gold to ride, white-blue where you drop, sky blue where you fly), a ring marks the next move, and the card at the top tells you what to do: take a branch, jump off and drop to a stream below, call your board.</p>
+  <p>Carve and your board throws up a wave of green trapar and white water behind you, tallest on the outside of the turn; leave a stream and it bursts into spray, catch one and it flashes. The Rendering folder sets the screen shape (fill, 16:9 or 4:3) and the ink.</p>
+  <p>The streams are streams of waves. Big peaked swells (3.5 m on trunks, smaller on smaller streams) roll along every stream a little faster than you cruise: tuck, pump or boost to get onto a swell's face and it carries you at its speed. Rollers half as long roll slower, so you ride up and over one every few seconds (pump down their faces), with chop on top; patches of bigger and smaller waves drift across the sky. After a bend the water sloshes from wall to wall. Narrow streams have stretches of rapids, standing humps of white water that rattle you at normal speed and launch you if you hit them fast or pop on a crest; each stretch ends in one bigger hump, a kicker. Chutes run white where they are steepest. Corkscrews, spiral loops, barrels, cords and kickers stay still; a branch leaving through a lane carries its host's waves with it.</p>
+  <p>Trapar grows like a root system. Trunks are pairs of strands flowing opposite ways, side by side and now and then twined round each other; where three trunks meet, the strands splay apart round a knot and three connectors cross the middle, weaving over and under each other, to take you onto another trunk. Between the trunks, roots span each cell, fuse into each other, and split into rootlets and tendrils that link roots, wrap round them, or end in a kicker over a lower stream you drop onto. The narrower a stream, the faster it carries you. A branch leaves through a lane: it lies flat on its host's floor, then slides off sideways with its own wall curling up; steer onto it or stay. Roots have spiral loops, rootlets corkscrews and short gaps (a kicker takes you over), and some rootlets and tendrils are round cords. While you ride you are locked to the surface: walls carry you up them, and you leave only by popping, launching off a lip or crest, riding off an edge, or peeling off an overhang. Hold RT to brace: more hold, a press onto the surface, and braced you can ride upside down, through corkscrews and all the way round a cord. In the air brace turns the board's bottom toward your landing. Gravity is strong, so airs are short and snappy. Boost only makes you faster: on a stream it pushes you along the stream, holds you on and lines you up with it; in the air it adds level speed the way you are flying. Hitting a stream side-on or with a bad landing crashes you onto it (you lose speed, you do not go through); only a board landing upside down passes through. How far round the outside of streams you may ride is a setting (Rider: surface). Test stages are at the top of the tuning panel.</p>
+  <div class="controls">
+    <div>
+      <h2>Controller</h2>
+      <dl>
+        <dt>Left stick</dt><dd>Swing the nose to turn (fins pull you after it). Forward: weight forward. Back: weight on the tail (slows, pivots tighter). In the air: spin (drifting a little sideways) and flip (braced too; a half-finished spin settles to the nearest landing). Flying in free fall (boost held): turn the nose, forward to dive, back to flare.</dd>
+        <dt>A hold</dt><dd>Crouch: pump down faces, charge a pop</dd>
+        <dt>A release</dt><dd>Pop off the surface. Still braced, you stay set on the same stream (hop to the opposite wall)</dd>
+        <dt>B hold / tap</dt><dd>Boost: more speed, nothing else. On a stream (or just off it): a push along the stream, up to a top speed, plus extra hold and a pull lining you up with the flow, so it never throws you off a wall. In a short air: level speed the way you are flying. In free fall: fly where the nose points, level, slowing your fall to a glide (it never climbs); flying uses the gauge more slowly.</dd>
+        <dt>LB / RB</dt><dd>Trapar sense pulse: lights up every ridable surface around you</dd>
+        <dt>LT</dt><dd>Snap: hard back-foot turn. Fast nose, big slide, costs speed. With RT: a cutback that keeps you on</dd>
+        <dt>RT (analog)</dt><dd>Brace: more hold and a press onto the surface (ride upside down, round cords, through corkscrews). In the air: turn the board's bottom to the landing (the lock ring), and drop back in over a halfpipe lip.</dd>
+        <dt>Right stick</dt><dd>Look around</dd>
+        <dt>View</dt><dd>Respawn</dd>
+        <dt>Menu</dt><dd>Tuning panel</dd>
+        <dt>Y</dt><dd>Board: jump off it (riding or in the air). On foot: in the air, call it back (it flies to your feet); on a stream (a dock), step onto it</dd>
+        <dt>On foot</dt><dd>Left stick moves you (relative to the camera), B runs, A jumps; skydiving, the stick moves you where you fall and A held dives. Right stick turns the camera</dd>
+        <dt>D-pad right</dt><dd>New route: an island to get to against the clock, with a trail showing the way</dd>
+        <dt>X / D-pad left</dt><dd>Density slice / force arrows</dd>
+        <dt>D-pad up / down</dt><dd>Spawn a storm / clear spawned storms</dd>
+      </dl>
+    </div>
+    <div>
+      <h2>Keyboard</h2>
+      <dl>
+        <dt>A / D</dt><dd>Lean</dd>
+        <dt>W / S</dt><dd>Weight forward / on the tail</dd>
+        <dt>Space</dt><dd>Crouch, pop</dd>
+        <dt>E</dt><dd>Boost (on foot: run)</dd>
+        <dt>X</dt><dd>Board: jump off / call it back / step onto a dock</dd>
+        <dt>N</dt><dd>New route to an island</dd>
+        <dt>I</dt><dd>Go to the nearest island (on foot)</dd>
+        <dt>Z</dt><dd>Trapar sense pulse</dd>
+        <dt>Q</dt><dd>Snap</dd>
+        <dt>Shift</dt><dd>Brace</dd>
+        <dt>Arrows</dt><dd>Look around</dd>
+        <dt>R</dt><dd>Respawn</dd>
+        <dt>Tab</dt><dd>Tuning panel</dd>
+        <dt>G / V</dt><dd>Force arrows / density slice</dd>
+        <dt>F / P</dt><dd>Freeze sky / pause</dd>
+        <dt>T / C</dt><dd>Spawn a storm / clear spawned storms</dd>
+      </dl>
+    </div>
+  </div>
+  <div class="help-foot"><span>Landing ring: green clean, amber sketchy, red crash (or, upside down, through); the outer ring means brace has locked onto it. Hold meter: appears where gravity or a crest is pulling you off; keep it above the white mark (brace, or go faster with the flow). Purple beam: the nearest stream you can still reach when nothing is below you. White ring: the island ground you will land on. Tall gold beam: your route's island; gold chevrons and a ring: the way there. Clouds never hold you.</span><button type="button" id="help-close">Start riding</button></div>
+</section>
+
+<div id="loading">
+  <h1>Skytide sandbox</h1>
+  <div class="loadbar"><div id="loading-fill"></div></div>
+  <p id="loading-status">Generating the sky</p>
+</div>
+
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+  "lil-gui": "https://cdn.jsdelivr.net/npm/lil-gui@0.20.0/dist/lil-gui.esm.min.js"
+} }
+</script>
+<script type="module" src="./src/main.js"></script>
