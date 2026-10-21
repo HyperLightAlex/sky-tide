@@ -217,7 +217,7 @@ export class RiderView {
       hip: new THREE.Vector3(), chest: new THREE.Vector3(), footL: new THREE.Vector3(), footR: new THREE.Vector3(),
       shoulderL: new THREE.Vector3(), handL: new THREE.Vector3(), shoulderR: new THREE.Vector3(), handR: new THREE.Vector3(),
     });
-    p.board = board; p.air = air; p.footY = footY; p.headYaw = headYaw;
+    p.board = board; p.air = air; p.footY = footY; p.headYaw = headYaw; p.skydive = 0;
     p.hip.copy(hip); p.chest.copy(chest); p.footL.copy(footL); p.footR.copy(footR);
     p.shoulderL.copy(shoulderL); p.handL.copy(handL); p.shoulderR.copy(shoulderR); p.handR.copy(handR);
   }
@@ -419,6 +419,7 @@ export class RiderView {
     this.head.rotation.set(0, Math.PI / 2, 0);
     this._setPose(false, sky > 0.3 || rider.rollT > 0, hip, chest, footL, footR, 0.05,
       chest.clone().add(V(0, -0.02, -0.2)), handL, chest.clone().add(V(0, -0.02, 0.2)), handR, 0);
+    this.pose.skydive = sky * (1 - dive);
 
     // The board: hidden, or flying in to your feet while you call it.
     const k = rider.summonT > 0 ? rider.summonT / Math.max(0.01, P.summonTime) : -1;

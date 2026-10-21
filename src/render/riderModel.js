@@ -296,6 +296,9 @@ export class RiderModels {
         // in the air: the feet hang from the legs, aimed where the placeholder's are
         M(T[`ankle_${s}`], pose[`foot${s}`]).multiplyScalar(c.hipY / 0.95);
         T[`ankle_${s}`].x = (s === 'L' ? 1 : -1) * Math.max(Math.abs(T[`ankle_${s}`].x) * 0.8, Math.abs(r[`Thigh_${s}`].x));
+        // skydiving, the knees bend and the feet lift behind (the skydiver's arch)
+        T[`ankle_${s}`].y += 0.3 * c.hipY * pose.skydive;
+        T[`ankle_${s}`].z -= 0.3 * c.hipY * pose.skydive;
       }
       T[`knee_${s}`].set(onBoard ? (s === 'L' ? 0.35 : -0.1) : 0, onBoard ? 0 : -0.15, 1);
     }
