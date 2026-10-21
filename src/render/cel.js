@@ -176,7 +176,7 @@ function smoothNormals(geo) {
 export function addOutline(root) {
   if (!outlineMat) outlineMat = new THREE.ShaderMaterial({ vertexShader: OUTLINE_VERT, fragmentShader: OUTLINE_FRAG, uniforms: OUTLINE, side: THREE.BackSide });
   const meshes = [];
-  root.traverse((o) => { if (o.isMesh && !o.userData.outline && o.material && !o.material.transparent && (o.material.isMeshLambertMaterial || o.material.isMeshStandardMaterial)) meshes.push(o); });
+  root.traverse((o) => { if (o.isMesh && !o.userData.outline && !o.userData.skipOutline && o.material && !o.material.transparent && (o.material.isMeshLambertMaterial || o.material.isMeshStandardMaterial)) meshes.push(o); });
   for (const o of meshes) {
     smoothNormals(o.geometry);
     const h = new THREE.Mesh(o.geometry, outlineMat);
