@@ -308,7 +308,8 @@ export class RiderModels {
     if (air) T.hips.y = pose.hip.y * c.hipY / 0.95;
     else {
       const ext = THREE.MathUtils.clamp((pose.hip.y - pose.footY) / 0.89, 0.45, 1.05);
-      T.hips.y = (onBoard ? b.at.L.y : 0) + ext * c.hipY;
+      // (riding, even standing tall the knees stay a little bent)
+      T.hips.y = onBoard ? b.at.L.y + ext * c.hipY * 0.93 : ext * c.hipY;
     }
     T.hipYaw = onBoard ? 0.25 : 0;
     T.chestYaw = onBoard ? 0.5 : 0;
