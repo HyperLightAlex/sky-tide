@@ -100,8 +100,8 @@ and a **volume**.
   edge on. Hazed with distance. Cards are drawn farthest first, after the sky and the solid
   world: a depth pass writes their solid parts (so streams behind are hidden), then the painting
   is laid over.
-- **The volume** is the card's silhouette turned round its upright (`tools/clouds/build_cards.py`
-  reads each card's outline from the atlas into `world/cloudCards.js`), so the painting and the
+- **The volume** is the card's silhouette turned round its upright (`tools/bg/build_painted.py`
+  reads each card's outline from its atlas into `world/paintedSets.js`), so the painting and the
   volume agree from every side. It is what shakes you (turbulence) and what the HUD reports.
 - **Flying in.** Within 45 m of a cloud its card thins away; inside, puffs of the painted cloud
   sea (round windows of its billows, warmed at golden hour) sit on a lattice tied to the world
@@ -110,6 +110,18 @@ and a **volume**.
 - **The cloud sea**: Helios's painted sea of cloud, far below at the floor (fall into it and you
   are gone), drifting, at two sizes blended by a slow noise so its billows never line up, warmed
   at golden hour, hazed into the horizon.
+
+### Glow (`render/pipeline.js`, the final pass)
+
+As a 2005 TV anime composited it: only the light glows. The frame is copied (at half size) just
+before the light goes on, after the sky, the solid world and the painted clouds; after the
+streams and effects, what they added (the frame less the copy) is kept where it is bright
+(`Glow threshold`), blurred tight (a quarter of the frame) and wide (an eighth), and added back
+before the tone map. So the streams' white lines and bright cores, the board's green trapar,
+the flashes and sparks glow, and the painted sky, clouds and islands never bloom. The puffs
+inside a cloud are drawn after the glow is taken (they are not light). The sun gets its own
+soft glow round its disc, dimmed where something solid stands in front of it. `Glow` and
+`Sun glow` (Rendering) set how strong.
 
 ### Characters (`render/cel.js`)
 
@@ -141,9 +153,13 @@ vignette, no grain, no blur.
 2. Ink pass: the solid world lined.
 3. Composite: the painted sky behind the solid world.
 4. The cloud sea and the cloud cards (their depth, then their painting, farthest first).
-5. Streams (translucent, behind the solid world and the clouds by depth).
-6. Effects: the wake, spray, flashes, the puffs inside a cloud, route trail, motes.
-7. The mist (inside a cloud), tone map to the screen; then the overlay.
+5. A half-size copy of the frame (for the glow).
+6. Streams (translucent, behind the solid world and the clouds by depth).
+7. Effects: the wake, spray, flashes, route trail, motes.
+8. Glow: what 6 and 7 added, where bright, blurred tight and wide.
+9. The puffs inside a cloud.
+10. Glow and the sun's glow added, the mist (inside a cloud), tone map to the screen; then the
+    overlay.
 
 (The low-resolution sky pass now runs only for the ray-marched streams, the comparison view.)
 
@@ -153,7 +169,8 @@ Per pass in software GL at 640x360 (relative only, and noisy; ms, v15 → v16): 
 (the cloud ray march) about 460 → gone; clouds (cards and sea) 43; composite 97 → 58; streams
 about 380 → 360; effects about 170 → 160; scene and ink about 45 as before. In all about 1150 →
 675: the painted clouds cost a small fraction of the march they replace. On a GPU the streams
-are now the largest pass.
+are now the largest pass. The glow adds a copy, an extract and four blurs, all at a half to
+an eighth of the frame: about a tenth more on the whole frame.
 
 ## Checking a change
 
@@ -169,8 +186,8 @@ riding first (with `LEAN` held) so the wake has built, `PRE` for any setting (fo
 
 - Phase 2: the drawing clock for every effect; speed lines; effect sheets in place of the
   procedural flashes and spray (art/fx-sheets).
-- Phase 3: compositing (glow on light: streams, wake, sun), moments (impact frames on big
-  landings, the painted still, title cards, the eyecatch).
+- Phase 3: moments (impact frames on big landings, the painted still, title cards, the
+  eyecatch); the glow is in.
 - Phase 4: Skytide's own painted skies and clouds per time of day (in place of Zenith's);
   night, with the streams glowing as aurora.
 - Phase 5: the rider and board designs (art/model-sheets), replacing the placeholders.

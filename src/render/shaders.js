@@ -346,9 +346,10 @@ void main() {
 `;
 
 export const FINAL_FRAG = /* glsl */ `
-uniform sampler2D tComp;
-uniform float uExposure, uMist;
-uniform vec3 uMistColor;
+uniform sampler2D tComp, tGlow, tGlowWide, tDepth;
+uniform float uExposure, uMist, uGlow, uSunGlow;
+uniform vec3 uMistColor, uSunColor;
+uniform vec2 uSunUv, uAspect;
 varying vec2 vUv;
 float ign(vec2 p) { return fract(52.9829189 * fract(dot(p, vec2(0.06711056, 0.00583715)))); }
 vec3 aces(vec3 x) {
@@ -357,11 +358,57 @@ vec3 aces(vec3 x) {
 }
 void main() {
   vec3 c = texture2D(tComp, vUv).rgb;
+  // Glow, composited as a 2005 TV anime did it: only the light glows (the streams' lines and
+  // cores, the board's trapar, flashes, sparks), never the painted sky, clouds or islands.
+  c += uGlow * (texture2D(tGlow, vUv).rgb * 1.1 + texture2D(tGlowWide, vUv).rgb * 0.9);
+  // The sun: a soft glow round its disc, hidden where something solid stands in front of it.
+  if (uSunGlow > 0.0) {
+    vec2 dv = (vUv - uSunUv) * uAspect;
+    float r = length(dv);
+    float occ = 0.0;
+    for (int i = 0; i < 5; i++) {
+      vec2 o = vec2(i == 1 ? 0.004 : i == 2 ? -0.004 : 0.0, i == 3 ? 0.004 : i == 4 ? -0.004 : 0.0);
+      occ += step(texture2D(tDepth, uSunUv + o).r, 0.99999) * 0.2;
+    }
+    float g = (exp(-r * 22.0) * 0.55 + exp(-r * 5.0) * 0.12) * (1.0 - occ * 0.85);
+    c += uSunColor * g * uSunGlow;
+  }
   // Inside a cloud the light goes to its own colour (render/cloudView.js).
   c = mix(c, uMistColor, uMist);
   c = aces(c * uExposure);
   c = pow(c, vec3(1.0 / 2.2));
   c += (ign(gl_FragCoord.xy) - 0.5) / 255.0;
+  gl_FragColor = vec4(c, 1.0);
+}
+`;
+
+// The glow passes. COPY: a downsampled copy of the frame before the light goes on. GLOW_EXTRACT:
+// what the light added (the frame after the streams and effects, less the copy), kept where it
+// is bright. BLUR: a 9-tap Gaussian along one direction.
+export const COPY_FRAG = /* glsl */ `
+uniform sampler2D tSrc;
+varying vec2 vUv;
+void main() { gl_FragColor = vec4(texture2D(tSrc, vUv).rgb, 1.0); }
+`;
+export const GLOW_EXTRACT_FRAG = /* glsl */ `
+uniform sampler2D tAfter, tBase;
+uniform float uThreshold;
+varying vec2 vUv;
+void main() {
+  vec3 add = max(texture2D(tAfter, vUv).rgb - texture2D(tBase, vUv).rgb, 0.0);
+  float l = dot(add, vec3(0.2126, 0.7152, 0.0722));
+  float k = smoothstep(uThreshold, uThreshold * 2.5 + 0.05, l);
+  gl_FragColor = vec4(add * k, 1.0);
+}
+`;
+export const BLUR_FRAG = /* glsl */ `
+uniform sampler2D tSrc;
+uniform vec2 uStep;
+varying vec2 vUv;
+void main() {
+  vec3 c = texture2D(tSrc, vUv).rgb * 0.2270;
+  c += (texture2D(tSrc, vUv + uStep * 1.3846).rgb + texture2D(tSrc, vUv - uStep * 1.3846).rgb) * 0.3162;
+  c += (texture2D(tSrc, vUv + uStep * 3.2308).rgb + texture2D(tSrc, vUv - uStep * 3.2308).rgb) * 0.0703;
   gl_FragColor = vec4(c, 1.0);
 }
 `;

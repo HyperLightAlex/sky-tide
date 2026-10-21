@@ -15,10 +15,12 @@ the way Zenith GP made its art. Keep to the method: it is why the pieces match.
 
 Until Skytide's own sheets are made, the game uses Zenith GP's painted Helios Drop and
 Meridian Skyway art (in `assets/painted`): both skies, both cloud-card sheets and the Helios
-cloud sea. Skytide's own sky and cloud sheets (sky-sheets) replace them; they keep the same
-layouts (a panorama with the horizon low, cloud cards 3x2 on green, a tiling cloud-sea square) so
-they drop in. After a new cloud sheet is cut, run `python3 tools/clouds/build_cards.py` (with its
-card rectangles) to rebuild the clouds' volumes from their outlines.
+cloud sea. Skytide's own sky sheets (sky-sheets) replace them, set by set, as they arrive: they
+keep Zenith's layouts (a sky half with the horizon three quarters down, cloud cards 3x2 on
+green, tiling squares 3x2), so they go through Zenith's own cutting, ported as
+`tools/bg/build_painted.py`. Put the sheets in `art/sky-sheets` and run it: it cuts and packs
+each set it finds into `assets/painted/<set>/`, reads each cloud card's outline (the cloud's
+volume), and writes `src/world/paintedSets.js`; the game then uses that set for its time of day.
 
 ## The method
 

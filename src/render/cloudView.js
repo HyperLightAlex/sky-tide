@@ -13,6 +13,7 @@
 import * as THREE from 'three';
 import { UNTONE_GLSL } from './painted.js';
 import { SKY_COLOR_GLSL } from './shaders.js';
+import { PAINTED_SETS } from '../world/paintedSets.js';
 
 const MAXCARDS = 512;
 const PUFFS = 7 * 7 * 7;        // the lattice of puffs round the camera inside a cloud
@@ -165,12 +166,12 @@ function quad(instanced) {
 const h3 = (i, j, k) => { let h = Math.imul(i, 374761393) ^ Math.imul(j, 668265263) ^ Math.imul(k, 2147483647); h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };
 
 export class CloudView {
-  constructor(backScene, fxScene, common, exposure) {
+  constructor(backScene, veilScene, common, exposure) {
     this.ready = false;
     this.common = common;
     this.uExposure = exposure;   // shared { value }
     this.backScene = backScene;
-    this.fxScene = fxScene;
+    this.veilScene = veilScene;   // (drawn after the glow is taken: puffs are not light)
     this.mist = 0; this.mistColor = new THREE.Color(0.9, 0.92, 0.98);
     this.camSdf = 1e9;
     this._near = { d: Infinity, s: null };
@@ -183,7 +184,7 @@ export class CloudView {
     // The cloud sea, a wide plane that follows the camera (its painting is tied to the world).
     this.seaMat = new THREE.ShaderMaterial({
       vertexShader: SEA_VERT, fragmentShader: SEA_FRAG,
-      uniforms: U({ tSea: { value: painted.cloudsea }, uTime: { value: 0 }, uFogDist: { value: 7000 }, uWarm: { value: 1 }, uDeep: { value: new THREE.Color(0.1, 0.2, 0.5) } }),
+      uniforms: U({ tSea: { value: null }, uTime: { value: 0 }, uFogDist: { value: 7000 }, uWarm: { value: 1 }, uDeep: { value: new THREE.Color(0.1, 0.2, 0.5) } }),
     });
     const sg = new THREE.PlaneGeometry(80000, 80000, 1, 1);
     sg.rotateX(-Math.PI / 2);
@@ -217,11 +218,11 @@ export class CloudView {
     pg.setAttribute('iPos', this.pPosA); pg.setAttribute('iRect', this.pRectA); pg.setAttribute('iA', this.pAA);
     pg.instanceCount = 0;
     this.puffGeo = pg;
-    this.puffMat = new THREE.ShaderMaterial({ vertexShader: PUFF_VERT, fragmentShader: PUFF_FRAG, uniforms: U({ tSea: { value: painted.cloudsea }, uWarm: { value: 1 } }), ...premult });
+    this.puffMat = new THREE.ShaderMaterial({ vertexShader: PUFF_VERT, fragmentShader: PUFF_FRAG, uniforms: U({ tSea: { value: null }, uWarm: { value: 1 } }), ...premult });
     this.puffs = new THREE.Mesh(pg, this.puffMat);
     this.puffs.frustumCulled = false;
     this.puffs.renderOrder = 6;
-    this.fxScene.add(this.puffs);
+    this.veilScene.add(this.puffs);
     this._order = [];
     this.ready = true;
   }
@@ -231,7 +232,12 @@ export class CloudView {
     const field = world.weather.field, cam = camera.position;
     this.seaMat.uniforms.uTime.value += dt;
     this.seaMat.uniforms.uFogDist.value = P.fogDistance;
-    this.seaMat.uniforms.uWarm.value = field.set() === 'meridian' ? 1 : 0;
+    // The set for the light now: its cloud sea and puffs (Zenith's Meridian borrows Helios's, warmed).
+    const surf = this.painted.surfaces[field.set()] || Object.values(this.painted.surfaces)[0];
+    this.seaMat.uniforms.tSea.value = surf.cloudsea;
+    this.seaMat.uniforms.uWarm.value = surf.warm ? 1 : 0;
+    this.puffMat.uniforms.tSea.value = surf.puffs;
+    this.puffMat.uniforms.uWarm.value = surf.warm ? 1 : 0;
     this.sea.position.set(cam.x, P.floorAltitude - 15, cam.z);
     this.sea.visible = P.cloudSea !== false;
     this.cardMat.uniforms.uFogDist.value = this.cardDepthMat.uniforms.uFogDist.value = P.fogDistance;
@@ -248,7 +254,8 @@ export class CloudView {
       if (sd < nearD) { nearD = sd; nearS = { ...s }; }
       const fade = THREE.MathUtils.smoothstep(sd, 2, 45);
       if (fade * s.alpha < 0.01) return;
-      list.push({ d2, x: s.x, y: s.y, z: s.z, W: s.W, H: s.H, a: s.alpha * fade, r: rects[s.set][s.card], m: s.mirror, off: s.set === 'helios' ? 0 : 0 });
+      if (!rects[s.set]) return;
+      list.push({ d2, x: s.x, y: s.y, z: s.z, W: s.W, H: s.H, a: s.alpha * fade, r: rects[s.set][s.card], m: s.mirror });
     });
     list.sort((a, b) => b.d2 - a.d2);
     const n = Math.min(MAXCARDS, list.length);
@@ -265,7 +272,6 @@ export class CloudView {
     // the nearest cloud; and the mist.
     this.camSdf = nearD;
     let np = 0;
-    this.puffMat.uniforms.uWarm.value = field.set() === 'meridian' ? 1 : 0;
     if (nearS && nearD < 60) {
       const s = nearS;
       const ci = Math.floor(cam.x / PUFF_CELL), cj = Math.floor(cam.y / PUFF_CELL), ck = Math.floor(cam.z / PUFF_CELL);
@@ -297,7 +303,7 @@ export class CloudView {
     for (const A of [this.pPosA, this.pRectA, this.pAA]) { A.clearUpdateRanges(); A.addUpdateRange(0, np * A.itemSize); A.needsUpdate = true; }
     // Mist: the deeper in, the more the light goes to the cloud's own colour.
     this.mist = nearS ? THREE.MathUtils.smoothstep(-nearD, 0, 80) * 0.4 * nearS.alpha : 0;
-    if (nearS) this.mistColor.setRGB(...(nearS.set === 'meridian' ? [0.96, 0.84, 0.78] : [0.86, 0.9, 0.98]));
+    if (nearS) this.mistColor.setRGB(...(PAINTED_SETS[nearS.set].light === 'golden' ? [0.96, 0.84, 0.78] : PAINTED_SETS[nearS.set].light === 'night' ? [0.32, 0.38, 0.55] : [0.86, 0.9, 0.98]));
   }
 
   _sortPuffs(n, cam) {

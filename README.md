@@ -71,8 +71,8 @@ src/render/cel.js         cel shading (characters and backgrounds) and the chara
 src/render/painted.js     the painted assets (skies, cloud cards, cloud sea) and unTone
 src/render/cloudView.js   painted cloud cards, the cloud sea, puffs and mist inside a cloud
 src/weather/cloudField.js the clouds as things: heaps in the moving air, their lives and volumes
-src/world/cloudCards.js   each cloud card's rectangle and outline (generated)
-tools/clouds/build_cards.py   builds cloudCards.js from the cloud atlases
+src/world/paintedSets.js  the painted sets: skies, cloud cards (rectangles, outlines), surfaces (generated)
+tools/bg/build_painted.py builds the painted sets from art/sky-sheets (Zenith GP's cutting)
 assets/painted/           painted skies, cloud cards and cloud sea (Zenith GP's, reused for now)
 src/render/islandsView.js island meshes near the camera
 src/render/camera.js      chase camera; orbit camera on foot

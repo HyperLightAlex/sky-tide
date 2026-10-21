@@ -18,6 +18,7 @@ import { setCelLight, setOutlineSize } from './render/cel.js';
 import { WakeView } from './render/wakeView.js';
 import { CloudView } from './render/cloudView.js';
 import { loadPainted } from './render/painted.js';
+import { paintedSetFor, stormSetFor } from './weather/cloudField.js';
 import { TrailView } from './render/trailView.js';
 import { RouteGuide } from './world/guide.js';
 import { Hud } from './debug/hud.js';
@@ -50,7 +51,8 @@ async function boot() {
   } catch (e) { console.warn('Braid worker unavailable, building snapshots in place.', e); braidWorker = null; }
 
   // The painted skies and clouds load alongside the sky's generation.
-  const paintedLoad = loadPainted().catch((e) => { console.warn('Painted assets did not load:', e.message); return null; });
+  const paintedSets = [-10, 10, 50].flatMap((el) => [paintedSetFor({ sunElevation: el }), stormSetFor({ sunElevation: el })]);
+  const paintedLoad = loadPainted(paintedSets).catch((e) => { console.warn('Painted assets did not load:', e.message); return null; });
   const bank = await generateNoiseBank((f) => {
     $('loading-fill').style.width = `${(f * 100).toFixed(0)}%`;
   }, { workerUrl: new URL('./sky/noiseWorker.js', import.meta.url) });
@@ -81,6 +83,7 @@ async function boot() {
   const overlay = new THREE.Scene();
   const streamScene = new THREE.Scene();   // the translucent streams, drawn after the clouds
   const backScene = new THREE.Scene();     // the painted clouds and cloud sea, after the sky
+  const veilScene = new THREE.Scene();     // what is not light but lies over it (puffs inside a cloud)
   const hemi = new THREE.HemisphereLight(0x9fc4ff, 0x10142a, 1.4);
   const sun = new THREE.DirectionalLight(0xffe2c4, 2.6);
   scene.add(hemi, sun, sun.target);
@@ -101,7 +104,7 @@ async function boot() {
   const guide = new RouteGuide(world.trapar.braids);
   const trail = new TrailView(fx);
   const wake = new WakeView(fx);   // the trapar wave and spray a board throws up
-  const clouds = new CloudView(backScene, fx, pipeline.common, pipeline.exposure);
+  const clouds = new CloudView(backScene, veilScene, pipeline.common, pipeline.exposure);
   const painted = await paintedLoad;
   if (painted) { pipeline.setPainted(painted); clouds.init(painted); }
   const motes = new Motes(fx, pipeline.skyUniforms, pipeline.look);
@@ -377,7 +380,7 @@ async function boot() {
     streamMesh.update(camera, world.trapar.braids, P, rider.dbg.thr, pipeline, rider.pos, rider.mode === 'board' ? rider.up : null);
     gpuTimer.begin();
     clouds.update(paused ? 0 : dt * P.simSpeed, camera, world, P);
-    pipeline.render(camera, scene, fx, overlay, P, rider.dbg.thr, streamScene, backScene, { amount: clouds.mist, color: clouds.mistColor });
+    pipeline.render(camera, scene, fx, overlay, P, rider.dbg.thr, streamScene, backScene, { amount: clouds.mist, color: clouds.mistColor }, veilScene);
     gpuTimer.end();
     view.renderSlice(renderer, P);
     hud.update(dt, rider, P, input, skyTime, pipeline.cloudScale, world, gpuTimer.ok ? gpuEma : null, renderScale);

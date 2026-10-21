@@ -62,7 +62,7 @@ void main() {
   // The base: the trapar's green glow, brightest behind the board.
   float young = 1.0 - smoothstep(0.1, 0.75, age);
   float g = (1.0 - smoothstep(0.0, 0.42, v)) * (0.35 + 0.65 * young) * str;
-  c = mix(c, mix(uLime, uLimeCore, (1.0 - smoothstep(0.0, 0.18, v)) * young) * 1.5, clamp(g * 1.2, 0.0, 1.0));
+  c = mix(c, mix(uLime, uLimeCore, (1.0 - smoothstep(0.0, 0.18, v)) * young) * (1.6 + 1.2 * young), clamp(g * 1.2, 0.0, 1.0));   // (bright: it is the light that glows most)
   a = max(a, g * 0.8);
   // The core: pastel rainbow sparkle right behind the board, each fleck fixed on the wave and
   // twinkling.

@@ -8,9 +8,10 @@
 
 import * as THREE from 'three';
 import { makeSkyUniforms, syncSkyUniforms } from '../sky/sky.js';
-import { FULLSCREEN_VERT, SKY_PASS_FRAG, COMPOSITE_FRAG, INK_FRAG, FINAL_FRAG } from './shaders.js';
+import { FULLSCREEN_VERT, SKY_PASS_FRAG, COMPOSITE_FRAG, INK_FRAG, FINAL_FRAG, COPY_FRAG, GLOW_EXTRACT_FRAG, BLUR_FRAG } from './shaders.js';
 import { BR } from '../trapar/braids.js';
 import { unToneJS } from './painted.js';
+import { paintedSetFor } from '../weather/cloudField.js';
 
 export function makeNoiseTextures(bank) {
   const make = (vol) => {
@@ -140,10 +141,22 @@ export class SkyPipeline {
       },
       depthTest: false, depthWrite: false,
     });
+    // Glow (only the light glows): targets at a half, a quarter and an eighth of the frame.
+    const grt = () => { const t = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, depthBuffer: false }); t.texture.minFilter = t.texture.magFilter = THREE.LinearFilter; return t; };
+    this.glowBase = grt(); this.glowHalf = grt();
+    this.glowQ1 = grt(); this.glowQ2 = grt(); this.glowE1 = grt(); this.glowE2 = grt();
+    const q = (frag, uniforms) => new THREE.ShaderMaterial({ vertexShader: FULLSCREEN_VERT, fragmentShader: frag, uniforms, depthTest: false, depthWrite: false });
+    this.copyMat = q(COPY_FRAG, { tSrc: { value: this.compRT.texture } });
+    this.extractMat = q(GLOW_EXTRACT_FRAG, { tAfter: { value: this.compRT.texture }, tBase: { value: this.glowBase.texture }, uThreshold: { value: 0.12 } });
+    this.blurMat = q(BLUR_FRAG, { tSrc: { value: null }, uStep: { value: new THREE.Vector2() } });
     this.finalMat = new THREE.ShaderMaterial({
       vertexShader: FULLSCREEN_VERT,
       fragmentShader: FINAL_FRAG,
-      uniforms: { tComp: { value: this.compRT.texture }, uExposure: this.exposure, uMist: { value: 0 }, uMistColor: { value: new THREE.Color(1, 1, 1) } },
+      uniforms: {
+        tComp: { value: this.compRT.texture }, uExposure: this.exposure, uMist: { value: 0 }, uMistColor: { value: new THREE.Color(1, 1, 1) },
+        tGlow: { value: this.glowQ2.texture }, tGlowWide: { value: this.glowE2.texture }, uGlow: { value: 1 },
+        tDepth: { value: this.depth }, uSunGlow: { value: 1 }, uSunColor: common.uSunColor, uSunUv: { value: new THREE.Vector2(-9, -9) }, uAspect: { value: new THREE.Vector2(1, 1) },
+      },
       depthTest: false, depthWrite: false,
     });
     this.quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), this.skyMat);
@@ -158,6 +171,11 @@ export class SkyPipeline {
     this.sceneRT.setSize(this.size.x, this.size.y);
     this.compRT.setSize(this.size.x, this.size.y);
     this.inkRT.setSize(this.size.x, this.size.y);
+    const hx = Math.max(1, this.size.x >> 1), hy = Math.max(1, this.size.y >> 1);
+    this.glowBase.setSize(hx, hy); this.glowHalf.setSize(hx, hy);
+    this.glowQ1.setSize(Math.max(1, hx >> 1), Math.max(1, hy >> 1)); this.glowQ2.setSize(Math.max(1, hx >> 1), Math.max(1, hy >> 1));
+    this.glowE1.setSize(Math.max(1, hx >> 2), Math.max(1, hy >> 2)); this.glowE2.setSize(Math.max(1, hx >> 2), Math.max(1, hy >> 2));
+    this.finalMat.uniforms.uAspect.value.set(this.size.x / this.size.y, 1);
     this._resizeClouds();
   }
 
@@ -204,6 +222,19 @@ export class SkyPipeline {
     this.skyMat.needsUpdate = true;
   }
 
+  _quad(mat, target) {
+    this.quad.material = mat;
+    this.renderer.setRenderTarget(target);
+    this.renderer.render(this.quadScene, this.quadCam);
+  }
+
+  _blur(src, dst, dx, dy, k) {
+    const u = this.blurMat.uniforms;
+    u.tSrc.value = src.texture;
+    u.uStep.value.set(dx * k / src.width, dy * k / src.height);
+    this._quad(this.blurMat, dst);
+  }
+
   // The painted assets (painted.js): the sky behind everything, by time of day.
   setPainted(painted) { this.painted = painted; }
 
@@ -222,7 +253,7 @@ export class SkyPipeline {
     const c = this.common;
     c.uSunColor.value.copy(PALETTE.sun).lerp(new THREE.Color(1.0, 0.95, 0.88), day * 0.6).multiplyScalar(2.7 * (0.25 + 0.75 * THREE.MathUtils.smoothstep(P.sunElevation, -5, 8)));
     this.exposure.value = P.exposure;
-    const sky = this.painted && this.painted.skies[P.sunElevation < 28 ? 'meridian' : 'helios'];
+    const sky = this.painted && this.painted.skies[paintedSetFor(P)];
     if (sky) {
       // The haze everything fades into takes its colours from the painted sky.
       const set = (col, rgb) => col.setRGB(unToneJS(rgb[0], P.exposure), unToneJS(rgb[1], P.exposure), unToneJS(rgb[2], P.exposure));
@@ -239,7 +270,7 @@ export class SkyPipeline {
     c.uAbyss.value.copy(PALETTE.abyss);
   }
 
-  render(camera, worldScene, fxScene, overlayScene, P, rideThr, streamScene = null, backScene = null, mist = null) {
+  render(camera, worldScene, fxScene, overlayScene, P, rideThr, streamScene = null, backScene = null, mist = null, veilScene = null) {
     const r = this.renderer;
     const c = this.common;
     camera.updateMatrixWorld();
@@ -304,9 +335,31 @@ export class SkyPipeline {
     // The painted clouds and the cloud sea (render/cloudView.js): over the sky, tested against
     // the solid world; their solid parts write depth, so streams behind them are hidden.
     if (backScene) r.render(backScene, camera);
+    // (the frame before the light goes on, for the glow)
+    const glow = P.glow > 0.001;
+    if (glow) this._quad(this.copyMat, this.glowBase);
     // The streams: translucent, over the sky and clouds, behind the solid world (render/streamMesh.js).
+    r.setRenderTarget(this.compRT);
     if (streamScene) r.render(streamScene, camera);
     if (fxScene) r.render(fxScene, camera);
+    // Glow: what the light added, kept where bright, blurred tight and wide.
+    if (glow) {
+      this.extractMat.uniforms.uThreshold.value = P.glowThreshold;
+      this._quad(this.extractMat, this.glowHalf);
+      this._blur(this.glowHalf, this.glowQ1, 1, 0, 1.0); this._blur(this.glowQ1, this.glowQ2, 0, 1, 1.0);
+      this._blur(this.glowQ2, this.glowE1, 1, 0, 1.6); this._blur(this.glowE1, this.glowE2, 0, 1, 1.6);
+      r.setRenderTarget(this.compRT);
+    }
+    // Things that are not light, over it (the puffs inside a cloud).
+    if (veilScene) r.render(veilScene, camera);
+    const fu2 = this.finalMat.uniforms;
+    fu2.uGlow.value = glow ? P.glow : 0;
+    // The sun's place on screen, for its glow.
+    const sp = this._sp || (this._sp = new THREE.Vector3());
+    sp.copy(this.sunDir).multiplyScalar(5000).add(camera.position).project(camera);
+    const front = sp.z < 1 && this.sunDir.dot(camera.getWorldDirection(this._cd || (this._cd = new THREE.Vector3()))) > 0;
+    fu2.uSunUv.value.set(front ? sp.x * 0.5 + 0.5 : -9, front ? sp.y * 0.5 + 0.5 : -9);
+    fu2.uSunGlow.value = front ? P.sunGlow : 0;
 
     // 5. Tone map to the screen, then the overlay.
     this.quad.material = this.finalMat;

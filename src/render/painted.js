@@ -1,21 +1,14 @@
-// The painted assets: skies, cloud cards and the cloud sea, painted for Zenith GP (its Helios
-// Drop and Meridian Skyway sheets) and reused here for now. Meridian's are golden hour,
-// Helios's a high sun.
+// The painted assets: skies, cloud cards, the cloud sea and the puffs inside clouds, one set
+// per time of day (src/world/paintedSets.js, built from art/sky-sheets by
+// tools/bg/build_painted.py). Until Skytide's own are made, Zenith GP's Meridian (golden hour)
+// and Helios (high sun) sets stand in.
 //
 // The frame is tone mapped on the way out (shaders.js FINAL_FRAG), which would change a
 // painting's colours (lifted mids, greyed whites). Painted things first undo it (unTone), so
 // they come out as painted, as Zenith does.
 
 import * as THREE from 'three';
-import { CLOUD_CARDS } from '../world/cloudCards.js';
-
-export const PAINTED = {
-  sky: {
-    meridian: { url: 'assets/painted/sky-meridian.webp', sunU: 0.2633, horizonV: 0.03125 },
-    helios: { url: 'assets/painted/sky-helios.webp', sunU: 0.4043, horizonV: 0.03125 },
-  },
-  cloudsea: 'assets/painted/cloudsea.webp',
-};
+import { PAINTED_SETS } from '../world/paintedSets.js';
 
 // The final pass's curve (Narkowicz's ACES fit, after the exposure, then a 2.2 gamma),
 // inverted: the HDR value that comes out of the frame as the painted colour.
@@ -39,42 +32,49 @@ function loadImage(url) {
 }
 
 /**
- * Load everything. Both cloud atlases go into one texture (Helios above, Meridian below), so
- * every card sorts with every other in one draw. Returns the textures, each card's rectangle
- * in the combined atlas, and colours read off each sky (for the haze to match it).
+ * Load the sets the sky can use (each time of day's set, and the storms'). Their cloud atlases
+ * go into one texture, one above the other, so every card sorts with every other in one draw.
+ * Returns the textures, each card's rectangle in the combined atlas, each set's sky (and colours
+ * read off it, for the haze to match it) and cloud surfaces.
  */
-export async function loadPainted() {
-  const [hel, mer, sea, skyM, skyH] = await Promise.all([
-    loadImage(CLOUD_CARDS.helios.url), loadImage(CLOUD_CARDS.meridian.url), loadImage(PAINTED.cloudsea),
-    loadImage(PAINTED.sky.meridian.url), loadImage(PAINTED.sky.helios.url),
-  ]);
-  const W = Math.max(hel.width, mer.width), H = hel.height + mer.height;
+export async function loadPainted(sets) {
+  const names = [...new Set(sets)].filter((n) => PAINTED_SETS[n]);
+  const atlasIms = await Promise.all(names.map((n) => loadImage(PAINTED_SETS[n].clouds)));
+  const W = Math.max(...atlasIms.map((im) => im.width)), H = atlasIms.reduce((a, im) => a + im.height, 0);
   const cv = document.createElement('canvas');
   cv.width = W; cv.height = H;
   const g = cv.getContext('2d');
-  g.drawImage(hel, 0, 0); g.drawImage(mer, 0, hel.height);
+  let y = 0;
+  const rects = {};
+  names.forEach((n, k) => {
+    const im = atlasIms[k];
+    g.drawImage(im, 0, y);
+    // v from the bottom of the combined atlas: this one's band is [vb, vb + fh].
+    const fh = im.height / H, vb = 1 - (y + im.height) / H, fw = im.width / W;
+    rects[n] = PAINTED_SETS[n].cards.map((c) => [c.u0 * fw, vb + c.v0 * fh, (c.u1 - c.u0) * fw, (c.v1 - c.v0) * fh]);
+    y += im.height;
+  });
   const atlas = new THREE.CanvasTexture(cv);
-  atlas.flipY = true;   // (v from the bottom, as the card rectangles are)
+  atlas.flipY = true;
   atlas.generateMipmaps = true; atlas.minFilter = THREE.LinearMipmapLinearFilter; atlas.anisotropy = 4;
-  // Rectangles in the combined atlas: Helios in the top half (v 0.5..1), Meridian the bottom.
-  const fh = hel.height / H, fm = mer.height / H;
-  const rects = {
-    helios: CLOUD_CARDS.helios.cards.map((c) => [c.u0 * hel.width / W, 1 - fh + c.v0 * fh, (c.u1 - c.u0) * hel.width / W, (c.v1 - c.v0) * fh]),
-    meridian: CLOUD_CARDS.meridian.cards.map((c) => [c.u0 * mer.width / W, c.v0 * fm, (c.u1 - c.u0) * mer.width / W, (c.v1 - c.v0) * fm]),
-  };
-  const tex = (im, repeat) => {
-    const t = new THREE.Texture(im);
+  const texCache = new Map();
+  const tex = async (url, repeat) => {
+    if (texCache.has(url)) return texCache.get(url);
+    const t = new THREE.Texture(await loadImage(url));
     t.needsUpdate = true; t.anisotropy = 4;
-    if (repeat) t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    if (repeat) t.wrapS = t.wrapT = THREE.RepeatWrapping; else t.wrapS = THREE.RepeatWrapping;
+    texCache.set(url, t);
     return t;
   };
-  const skies = {};
-  for (const [name, im] of [['meridian', skyM], ['helios', skyH]]) {
-    const t = tex(im, false);
-    t.wrapS = THREE.RepeatWrapping;
-    skies[name] = { tex: t, ...PAINTED.sky[name], colors: skyColors(im, PAINTED.sky[name]) };
+  const skies = {}, surfaces = {};
+  for (const n of names) {
+    const S = PAINTED_SETS[n];
+    const t = await tex(S.sky, false);
+    skies[n] = { tex: t, sunU: S.sunU, horizonV: S.horizonV, colors: skyColors(t.image, S) };
+    const sea = await tex(S.surfaces.cloudsea, true);
+    surfaces[n] = { cloudsea: sea, puffs: S.surfaces.puffs ? await tex(S.surfaces.puffs, true) : sea, warm: !!S.warm };
   }
-  return { atlas, rects, cloudsea: tex(sea, true), skies };
+  return { atlas, rects, skies, surfaces };
 }
 
 // Colours off a painted sky (sRGB, 0..1): the zenith, the clean blue below it, and the

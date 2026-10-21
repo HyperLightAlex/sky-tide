@@ -8,7 +8,7 @@
 // another. Everything is a function of the seed, the time and where the focus is, so the main
 // thread, workers and tests all see the same sky. No three.js here.
 
-import { CLOUD_CARDS } from '../world/cloudCards.js';
+import { PAINTED_SETS } from '../world/paintedSets.js';
 
 const CELL = 1150;          // one heap at most per cell of moving air (m)
 const RANGE = 11500;        // heaps kept within this of the focus (m)
@@ -25,17 +25,34 @@ function hash(i, k, s) {
 const rnd = (h, n) => (hash(h, n, 0x9e37) & 0xffffff) / 0x1000000;
 const sst = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 
-// Cards by shape, for each set: towers (narrow), heaps, banks (wide).
+// Cards by shape, for each painted set: towers (narrow), heaps, banks (wide); never the storm.
 function sortCards(set) {
-  const cards = CLOUD_CARDS[set].cards.map((c, i) => ({ i, a: c.aspect }));
+  const S = PAINTED_SETS[set];
+  const cards = S.cards.map((c, i) => ({ i, a: c.aspect })).filter((c) => c.i !== S.anvil);
   return {
     tower: cards.filter((c) => c.a < 1.4).map((c) => c.i),
     heap: cards.filter((c) => c.a >= 1.2 && c.a < 1.8).map((c) => c.i),
     bank: cards.filter((c) => c.a >= 1.55).map((c) => c.i),
   };
 }
-const SHAPES = { helios: sortCards('helios'), meridian: sortCards('meridian') };
-const ANVIL = 3;            // the Helios sheet's cumulonimbus (an anvil over a tower)
+const SETS = Object.keys(PAINTED_SETS);
+const SHAPES = Object.fromEntries(SETS.map((n) => [n, sortCards(n)]));
+
+/**
+ * The painted set for the light now: Skytide's own for the time of day when it has been
+ * made (tools/bg/build_painted.py), otherwise Zenith GP's (Meridian at golden hour, Helios
+ * under a high sun).
+ */
+export function paintedSetFor(P) {
+  const light = P.sunElevation < -3 ? 'night' : P.sunElevation < 28 ? 'golden' : 'midday';
+  if (PAINTED_SETS[light]) return light;
+  return light === 'midday' ? 'helios' : 'meridian';
+}
+/** The set whose storm card the storms use (the set's own, or Helios's). */
+export function stormSetFor(P) {
+  const s = paintedSetFor(P);
+  return PAINTED_SETS[s].anvil != null ? s : 'helios';
+}
 
 export class CloudField {
   constructor(weather) {
@@ -56,10 +73,11 @@ export class CloudField {
     W.windOffset(stAlt, t, this._o); this.off[1].x = this._o.x; this.off[1].z = this._o.z;
     // Storm towers follow the weather's living storms.
     this.storms.length = 0;
+    const ss = stormSetFor(P), anvil = PAINTED_SETS[ss].anvil;
     for (const a of W.alive) {
-      const C = CLOUD_CARDS.helios.cards[ANVIL];
+      const C = PAINTED_SETS[ss].cards[anvil];
       const w = Math.max(900, a.R * 2.4);
-      this.storms.push({ x: a.x, z: a.z, y: Math.max(0, P.cloudBase - 250), W: w, H: w / C.aspect, life: Math.min(1, a.amp), storm: true, card: { helios: ANVIL, meridian: ANVIL }, set: 'helios', mirror: (a.s && a.s.t0 ? (Math.floor(a.s.t0) & 1) : 0) });
+      this.storms.push({ x: a.x, z: a.z, y: Math.max(0, P.cloudBase - 250), W: w, H: w / C.aspect, life: Math.min(1, a.amp), storm: true, card: { [ss]: anvil }, set: ss, mirror: (a.s && a.s.t0 ? (Math.floor(a.s.t0) & 1) : 0) });
     }
     // The heaps round the focus: rebuilt when the focus has moved through the air, or the
     // settings changed, or every few seconds (cells come and go).
@@ -90,7 +108,7 @@ export class CloudField {
       const kind = rnd(h, 5);
       const shape = kind < 0.16 ? 'tower' : kind < 0.62 ? 'heap' : 'bank';
       const size = shape === 'tower' ? 800 + 600 * rnd(h, 6) : shape === 'heap' ? 420 + 420 * rnd(h, 6) : 260 + 340 * rnd(h, 6);
-      const card = { helios: this._pick('helios', shape, h), meridian: this._pick('meridian', shape, h) };
+      const card = this._cards(shape, h);
       out.push({ ax: x, az: z, y: P.cloudBase + rnd(h, 8) * 90, W: size, layer: 0, card, ph, mirror: rnd(h, 9) < 0.5 ? 1 : 0, squash: 1, id: h });
     }
     // Stratus banks: wide and flat, at their own height.
@@ -104,20 +122,25 @@ export class CloudField {
         if (rnd(h, 4) > P.stratusAmount * 0.9) continue;
         const x = (i + 0.2 + 0.6 * rnd(h, 2)) * ST_CELL, z = (k + 0.2 + 0.6 * rnd(h, 3)) * ST_CELL;
         if (Math.hypot(x - sx, z - sz) > RANGE) continue;
-        const card = { helios: this._pick('helios', 'bank', h), meridian: this._pick('meridian', 'bank', h) };
+        const card = this._cards('bank', h);
         out.push({ ax: x, az: z, y: P.stratusAltitude - P.stratusThickness, W: 700 + 900 * rnd(h, 6), layer: 1, card, ph, mirror: rnd(h, 9) < 0.5 ? 1 : 0, squash: 0.32, id: h, period: PERIOD * 1.5 });
       }
     }
     this.version = (this.version || 0) + 1;
   }
 
-  _pick(set, shape, h) {
-    const L = SHAPES[set][shape].length ? SHAPES[set][shape] : SHAPES[set].heap;
-    return L[Math.floor(rnd(h, set === 'helios' ? 11 : 12) * L.length) % L.length];
+  // A card of this shape from every set (so a cloud keeps its shape when the light changes).
+  _cards(shape, h) {
+    const out = {};
+    SETS.forEach((n, k) => {
+      const L = SHAPES[n][shape].length ? SHAPES[n][shape] : SHAPES[n].heap;
+      out[n] = L[Math.floor(rnd(h, 11 + k) * L.length) % L.length];
+    });
+    return out;
   }
 
-  /** Which painted set the sky uses now (golden hour: Meridian's; a high sun: Helios's). */
-  set() { return this.W.P.sunElevation < 28 ? 'meridian' : 'helios'; }
+  /** Which painted set the sky uses now. */
+  set() { return paintedSetFor(this.W.P); }
 
   /**
    * A cloud's state now: where (world), how big, and how far through its life (0..1, the
@@ -126,14 +149,14 @@ export class CloudField {
   state(c, out = {}) {
     if (c.storm) {
       out.x = c.x; out.z = c.z; out.y = c.y; out.W = c.W * (0.6 + 0.4 * c.life); out.H = c.H * (0.6 + 0.4 * c.life);
-      out.alpha = sst(0, 0.25, c.life); out.card = c.card.helios; out.set = 'helios'; out.mirror = c.mirror; out.c = c;
+      out.alpha = sst(0, 0.25, c.life); out.set = c.set; out.card = c.card[c.set]; out.mirror = c.mirror; out.c = c;
       return out;
     }
     const o = this.off[c.layer];
     const per = c.period || PERIOD;
     const phase = frac(this.t / per + c.ph);
     const life = Math.pow(Math.sin(Math.PI * phase), 0.5);
-    const set = this.set(), C = CLOUD_CARDS[set].cards[c.card[set]];
+    const set = this.set(), C = PAINTED_SETS[set].cards[c.card[set]];
     out.x = c.ax + o.x; out.z = c.az + o.z; out.y = c.y;
     out.W = c.W * (0.55 + 0.45 * life);
     out.H = (out.W / C.aspect) * c.squash;
@@ -147,7 +170,7 @@ export class CloudField {
    * turned round its upright, on its flat base. Negative inside.
    */
   sdf(s, x, y, z) {
-    const C = CLOUD_CARDS[s.set].cards[s.card];
+    const C = PAINTED_SETS[s.set].cards[s.card];
     const dy = y - s.y;
     const h01 = dy / s.H;
     const d = Math.hypot(x - s.x, z - s.z);
