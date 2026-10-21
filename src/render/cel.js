@@ -122,8 +122,12 @@ export function celMaterial(src, char = false, shape = false) {
   const m = new THREE.MeshLambertMaterial({
     color: src.color ? src.color.clone() : 0xffffff, vertexColors: !!src.vertexColors, flatShading: !!src.flatShading,
     side: src.side, transparent: src.transparent, opacity: src.opacity, map: src.map || null,
+    alphaTest: src.alphaTest || 0, depthWrite: src.depthWrite !== false,
+    emissiveMap: src.emissiveMap || null,
   });
   if (src.emissive) m.emissive.copy(src.emissive);
+  m.name = src.name;
+  m.userData = { ...src.userData };
   return patch(m, char, shape);
 }
 
@@ -155,11 +159,22 @@ export const OUTLINE = {
 };
 
 const OUTLINE_VERT = /* glsl */ `
+#include <common>
+#include <morphtarget_pars_vertex>
+#include <skinning_pars_vertex>
 attribute vec3 aOutN;
 uniform float uLinePx;
 void main() {
-  vec4 mv = modelViewMatrix * vec4(position, 1.0);
-  vec3 n = normalize(normalMatrix * aOutN);
+  #include <beginnormal_vertex>
+  objectNormal = aOutN;
+  #include <morphnormal_vertex>
+  #include <skinbase_vertex>
+  #include <skinnormal_vertex>
+  #include <begin_vertex>
+  #include <morphtarget_vertex>
+  #include <skinning_vertex>
+  vec4 mv = modelViewMatrix * vec4(transformed, 1.0);
+  vec3 n = normalize(normalMatrix * objectNormal);
   float z = max(-mv.z, 0.1);
   float w = uLinePx * z * clamp(10.0 / z, 0.45, 1.0) / projectionMatrix[1][1] * 2.0;
   mv.xyz += n * w;
@@ -201,7 +216,17 @@ export function addOutline(root) {
   root.traverse((o) => { if (o.isMesh && !o.userData.outline && !o.userData.skipOutline && o.material && !o.material.transparent && (o.material.isMeshLambertMaterial || o.material.isMeshStandardMaterial)) meshes.push(o); });
   for (const o of meshes) {
     smoothNormals(o.geometry);
-    const h = new THREE.Mesh(o.geometry, outlineMat);
+    const h = o.isSkinnedMesh ? new THREE.SkinnedMesh(o.geometry, outlineMat) : new THREE.Mesh(o.geometry, outlineMat);
+    if (o.isSkinnedMesh) {
+      // The shell shares the source skeleton and bind transform. Its local transform is
+      // identity under the source mesh, so both see the same world-space deformation.
+      h.bindMode = o.bindMode;
+      h.bind(o.skeleton, o.bindMatrix);
+    }
+    if (o.morphTargetInfluences) {
+      h.morphTargetDictionary = o.morphTargetDictionary;
+      h.morphTargetInfluences = o.morphTargetInfluences;
+    }
     h.userData.outline = true;
     h.frustumCulled = o.frustumCulled;
     h.renderOrder = o.renderOrder;

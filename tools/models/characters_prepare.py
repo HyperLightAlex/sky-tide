@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Prepare the original character models (Hunyuan3D-2mv, art/models/source) for the game.
 
-    python3 tools/models/characters_prepare.py [--debug]
+    python3 tools/models/characters_prepare.py [--debug] [--static]
 
 For each character it keeps the delivered surface, UVs and colour texture (they read well
 under the game's cel shading as they are) and:
@@ -21,7 +21,9 @@ The face is the skin-coloured surface of the head, closed over the painted eyes,
 mouth; the hair is the surface of the head coloured like the crown. --debug writes front
 and side views of both to art/models/previews/ for checking.
 
-Writes assets/models/<name>.glb and art/models/production/<name>-prepare.json.
+characters_rig.py runs this (prepare()) and then rigs the result, writing the game's
+assets/models/<name>.glb. Run alone, this writes art/models/production/<name>-prepare.json
+(and, with --static, the unrigged models to assets/models/ for comparison).
 """
 import io
 import json
@@ -48,8 +50,8 @@ FRAGMENT = 50          # loose pieces under this many triangles are dropped
 def accessor(g, blob, i):
     a = g.accessors[i]
     bv = g.bufferViews[a.bufferView]
-    n = {'SCALAR': 1, 'VEC2': 2, 'VEC3': 3, 'VEC4': 4}[a.type]
-    dt = {5126: np.float32, 5125: np.uint32, 5123: np.uint16, 5121: np.uint8}[a.componentType]
+    n = {'SCALAR': 1, 'VEC2': 2, 'VEC3': 3, 'VEC4': 4, 'MAT4': 16}[a.type]
+    dt = {5126: np.float32, 5125: np.uint32, 5123: np.uint16, 5121: np.uint8, 5120: np.int8, 5122: np.int16}[a.componentType]
     off = (bv.byteOffset or 0) + (a.byteOffset or 0)
     arr = np.frombuffer(blob, dt, a.count * n, off)
     return arr.reshape(a.count, n) if n > 1 else arr
@@ -300,48 +302,62 @@ def debug_views(path, P, F, col, wf, wh):
     out.save(path)
 
 
+def prepare(name, spec, debug=False):
+    """The model as the game uses it, before rigging: positions, normals, UVs, shaped normals,
+    triangles, the colour texture (JPEG bytes) and what was found on it."""
+    P, N, UV, F, tex = load(os.path.join(ROOT, spec['source']))
+    grp = weld(P)
+    n = grp.max() + 1
+    A = adjacency(F, grp, n)
+    comp = components(A)
+    tri_comp = comp[grp[F[:, 0]]]
+    sizes = np.bincount(tri_comp)
+    keep = sizes[tri_comp] >= FRAGMENT
+    dropped = int((~keep).sum())
+    F = F[keep]
+    used = np.unique(F)
+    remap = -np.ones(len(P), np.int64); remap[used] = np.arange(len(used))
+    P, N, UV, F = P[used], N[used], UV[used], remap[F]
+    # stand it at its height: feet on Y=0, centred, facing +Z
+    lo, hi = P.min(0), P.max(0)
+    s = spec['height'] / (hi[1] - lo[1])
+    P = (P - np.array([(lo[0] + hi[0]) / 2, lo[1], (lo[2] + hi[2]) / 2])) * s
+    N /= np.maximum(np.linalg.norm(N, axis=1, keepdims=True), 1e-9)
+    small = tex.resize((1024, 1024), Image.BOX)
+    col = sample(small, UV)
+    grp = weld(P)
+    n = grp.max() + 1
+    A = adjacency(F, grp, n)
+    gout, gw, gf, gh, info = shape_normals(P, N, F, col, grp, A)
+    CELN = np.concatenate([gout[grp], gw[grp][:, None]], 1)
+    info.update(source=spec['source'], height_m=spec['height'], scale=round(float(s), 5), dropped_fragment_triangles=dropped)
+    if debug:
+        debug_views(os.path.join(ROOT, 'art', 'models', 'previews', f'{name}-face-mask.png'), P, F, col, gf[grp], gh[grp])
+    return dict(P=P, N=N, UV=UV, F=F, CELN=CELN, tex=tex, col=col, info=info)
+
+
+def jpeg(tex):
+    bio = io.BytesIO()
+    tex.resize((TEX, TEX), Image.LANCZOS).save(bio, 'JPEG', quality=88)
+    return bio.getvalue()
+
+
 def main():
+    """Checks the preparation (and with --static writes the unrigged models; the game's models are
+    written by characters_rig.py, which runs this first)."""
     debug = '--debug' in sys.argv
     for name, spec in CHARACTERS.items():
-        P, N, UV, F, tex = load(os.path.join(ROOT, spec['source']))
-        grp = weld(P)
-        n = grp.max() + 1
-        A = adjacency(F, grp, n)
-        comp = components(A)
-        tri_comp = comp[grp[F[:, 0]]]
-        sizes = np.bincount(tri_comp)
-        keep = sizes[tri_comp] >= FRAGMENT
-        dropped = int((~keep).sum())
-        F = F[keep]
-        used = np.unique(F)
-        remap = -np.ones(len(P), np.int64); remap[used] = np.arange(len(used))
-        P, N, UV, F = P[used], N[used], UV[used], remap[F]
-        # stand it at its height: feet on Y=0, centred, facing +Z
-        lo, hi = P.min(0), P.max(0)
-        s = spec['height'] / (hi[1] - lo[1])
-        P = (P - np.array([(lo[0] + hi[0]) / 2, lo[1], (lo[2] + hi[2]) / 2])) * s
-        N /= np.maximum(np.linalg.norm(N, axis=1, keepdims=True), 1e-9)
-        col = np.zeros((len(P), 3))
-        small = tex.resize((1024, 1024), Image.BOX)
-        col = sample(small, UV)
-        grp = weld(P)
-        n = grp.max() + 1
-        A = adjacency(F, grp, n)
-        gout, gw, gf, gh, info = shape_normals(P, N, F, col, grp, A)
-        CELN = np.concatenate([gout[grp], gw[grp][:, None]], 1)
-        bio = io.BytesIO()
-        tex.resize((TEX, TEX), Image.LANCZOS).save(bio, 'JPEG', quality=88)
-        out = os.path.join(ROOT, 'assets', 'models', f'{name}.glb')
-        os.makedirs(os.path.dirname(out), exist_ok=True)
-        write_glb(out, name, P, N, UV, CELN, F, bio.getvalue())
-        info.update(source=spec['source'], height_m=spec['height'], scale=round(float(s), 5), vertices=int(len(P)), triangles=int(len(F)),
-                    dropped_fragment_triangles=dropped, texture_px=TEX, bytes=os.path.getsize(out))
+        M = prepare(name, spec, debug)
+        info = M['info']
+        info.update(vertices=int(len(M['P'])), triangles=int(len(M['F'])), texture_px=TEX)
+        if '--static' in sys.argv:
+            out = os.path.join(ROOT, 'assets', 'models', f'{name}.glb')
+            write_glb(out, name, M['P'], M['N'], M['UV'], M['CELN'], M['F'], jpeg(M['tex']))
+            info['bytes'] = os.path.getsize(out)
         os.makedirs(os.path.join(ROOT, 'art', 'models', 'production'), exist_ok=True)
         with open(os.path.join(ROOT, 'art', 'models', 'production', f'{name}-prepare.json'), 'w') as fh:
             json.dump(info, fh, indent=1)
         print(name, json.dumps(info))
-        if debug:
-            debug_views(os.path.join(ROOT, 'art', 'models', 'previews', f'{name}-face-mask.png'), P, F, col, gf[grp], gh[grp])
 
 
 if __name__ == '__main__':

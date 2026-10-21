@@ -3,7 +3,8 @@
   "version": "1.0.0",
   "description": "Look and physics checks for Sky Tide (see README.md)",
   "scripts": {
-    "shots": "node look-shots.mjs"
+    "shots": "node look-shots.mjs",
+    "riders": "node rider-shots.mjs"
   },
   "keywords": [],
   "author": "",

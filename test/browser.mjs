@@ -26,10 +26,10 @@ page.on('pageerror', (e) => logs.push(`[pageerror] ${e.message}`));
 await page.route('https://cdn.jsdelivr.net/**', (route) => {
   const u = route.request().url();
   let f = null;
-  if (u.includes('three@')) f = 'node_modules/three/build/three.module.js';
+  if (u.includes('three@')) f = 'node_modules/three/' + u.split(/three@[^/]+\//)[1];
   if (u.includes('lil-gui@')) f = 'node_modules/lil-gui/dist/lil-gui.esm.min.js';
   if (!f) return route.abort();
-  route.fulfill({ status: 200, contentType: 'text/javascript', body: fs.readFileSync(f) });
+  route.fulfill({ status: 200, contentType: 'text/javascript', body: fs.readFileSync(new URL('./' + f, import.meta.url)) });
 });
 await page.route('https://fonts.**', (r) => r.abort());
 

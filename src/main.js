@@ -10,6 +10,7 @@ import { Rider } from './rider/rider.js';
 import { Input } from './input/input.js';
 import { SkyPipeline, makeNoiseTextures } from './render/pipeline.js';
 import { RiderView } from './render/riderView.js';
+import { RiderModels, loadRiderModels } from './render/riderModel.js';
 import { Motes } from './render/motes.js';
 import { ChaseCam } from './render/camera.js';
 import { IslandsView } from './render/islandsView.js';
@@ -53,6 +54,7 @@ async function boot() {
   // The painted skies and clouds load alongside the sky's generation.
   const paintedSets = [-10, 10, 50].flatMap((el) => [paintedSetFor({ sunElevation: el }), stormSetFor({ sunElevation: el })]);
   const paintedLoad = loadPainted(paintedSets).catch((e) => { console.warn('Painted assets did not load:', e.message); return null; });
+  const modelsLoad = loadRiderModels();
   const bank = await generateNoiseBank((f) => {
     $('loading-fill').style.width = `${(f * 100).toFixed(0)}%`;
   }, { workerUrl: new URL('./sky/noiseWorker.js', import.meta.url) });
@@ -99,6 +101,10 @@ async function boot() {
 
   const rider = new Rider(world, P);
   const view = new RiderView(scene, fx, overlay, pipeline.skyUniforms);
+  // The rider's own models (Tavi or Mara on Skipper or Kestrel) take over from the placeholder
+  // once loaded.
+  let riderModels = null;
+  modelsLoad.then((a) => { if (a) riderModels = new RiderModels(view, fx, a); });
   const islandsView = new IslandsView(scene);
   const streamMesh = new StreamMesh(streamScene, pipeline.skyUniforms, pipeline.common, pipeline.look);
   const guide = new RouteGuide(world.trapar.braids);
@@ -242,7 +248,7 @@ async function boot() {
   onResize();
 
   // Exposed for debugging from the browser console.
-  window.sandbox = { world, rider, P, input, camera, pipeline, panel, spawnStorm, newRoute, toIsland, islandsView, streamMesh, guide, trail, wake, clouds, view, motes, scriptInput: null, camOverride: null, get skyTime() { return skyTime; }, get route() { return route; } };
+  window.sandbox = { world, rider, P, input, camera, pipeline, panel, spawnStorm, newRoute, toIsland, islandsView, streamMesh, guide, trail, wake, clouds, view, motes, get riderModels() { return riderModels; }, scriptInput: null, camOverride: null, get skyTime() { return skyTime; }, get route() { return route; } };
   const camDir = new THREE.Vector3();
 
   let acc = 0, last = performance.now(), frameEma = 16, gpuEma = 8, qualityT = 0, boostRumbleT = 0;
@@ -374,6 +380,7 @@ async function boot() {
     } else hud.setGuide(null);
     trail.update(dt, route ? guide : null, camera, P, world.trapar.braids.S.uBrWater[3]);
     view.update(dt, rider, P, camera);
+    if (riderModels) riderModels.update(dt, rider, P);
     wake.update(paused ? 0 : dt * P.simSpeed, rider, camera, P, pipeline.size.y);   // (on the sim's clock: pauses and slows with it)
     motes.update(camera, P, rider, skyTime, dpr);
     pipeline.setStreamMesh(!!P.streamMesh);

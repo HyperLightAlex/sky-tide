@@ -4,6 +4,13 @@
 
 export const SCHEMA = [
   {
+    folder: 'Character and board',
+    items: [
+      ['character', 'Tavi', ['Tavi', 'Mara'], null, null, 'Character'],
+      ['board', 'Skipper', ['Skipper', 'Kestrel'], null, null, 'Board'],
+    ],
+  },
+  {
     folder: 'World',
     items: [
       ['seed', 7, 1, 9999, 1, 'World seed'],

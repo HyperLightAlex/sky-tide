@@ -22,7 +22,13 @@ repo (15 to 18 MB each).
 - **Characters**: the original models stay as the baseline (a rebuilt, rigged pass looked worse).
   `tools/models/characters_prepare.py` sizes them to their sheets (Tavi 1.72 m, Mara 1.82 m),
   trims them to about 3.4 MB and gives the face and hair shaped normals for the cel shader:
-  item 1 (`art/models/CHARACTERS.md`). Rigging (items 3 and 4) is next.
+  item 1 (`art/models/CHARACTERS.md`).
+- **Rig** (item 4): `tools/models/characters_rig.py` gives each a skeleton found from its own
+  anatomy and skin weights, cutting Tavi's sleeves free of his jacket under the arms so they
+  raise cleanly; the game poses them every frame to the placeholder's targets
+  (`src/render/riderModel.js`) and they replace it, on Skipper or Kestrel (the panel's
+  "Character and board"). No retopology (item 3): the even mesh bends acceptably at play
+  distance.
 
 ## What needs work
 

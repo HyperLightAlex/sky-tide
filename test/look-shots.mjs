@@ -30,7 +30,7 @@ page.on('console', (m) => { if (m.type() === 'error' || m.type() === 'warning') 
 await page.route('https://cdn.jsdelivr.net/**', (route) => {
   const u = route.request().url();
   let f = null;
-  if (u.includes('three@')) f = 'node_modules/three/build/three.module.js';
+  if (u.includes('three@')) f = 'node_modules/three/' + u.split(/three@[^/]+\//)[1];
   if (u.includes('lil-gui@')) f = 'node_modules/lil-gui/dist/lil-gui.esm.min.js';
   if (!f) return route.abort();
   route.fulfill({ status: 200, contentType: 'text/javascript', body: fs.readFileSync(new URL('./' + f, import.meta.url)) });
@@ -124,6 +124,14 @@ for (const name of shots) {
     }
     s.camOverride = (cam, r) => {
       const p = r.pos, v = r.vel || { x: 0, y: 0, z: 1 };
+      if (name === 'model') {
+        const q = s.view.body.quaternion;
+        const offset = s.view.body.position.clone().set(2.8, 1.55, 2.3).applyQuaternion(q);
+        const target = s.view.body.position.clone().set(0, .72, 0).applyQuaternion(q);
+        cam.position.set(p.x + offset.x, p.y + offset.y, p.z + offset.z);
+        cam.lookAt(p.x + target.x, p.y + target.y, p.z + target.z);
+        return;
+      }
       let fx = v.x, fz = v.z; const l = Math.hypot(fx, fz) || 1; fx /= l; fz /= l;
       const rx = -fz, rz = fx;
       const at = { front: [fx * 9 + rx * 2, 2.2, fz * 9 + rz * 2, 0, 0.9, 0], side: [rx * 45, 22, rz * 45, 0, 0, 0], wide: [-fx * 160 + rx * 40, 70, -fz * 160 + rz * 40, fx * 200, -20, fz * 200], low: [-fx * 14 + rx * 6, -6, -fz * 14 + rz * 6, fx * 30, 2, fz * 30], three: [rx * 11 + fx * 2, 3, rz * 11 + fz * 2, -fx * 5, 1, -fz * 5], threeL: [-rx * 11 + fx * 2, 3, -rz * 11 + fz * 2, -fx * 5, 1, -fz * 5] }[name];

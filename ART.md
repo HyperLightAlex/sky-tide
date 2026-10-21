@@ -242,5 +242,7 @@ riding first (with `LEAN` held) so the wake has built, `PRE` for any setting (fo
 - Phase 4: Skytide's own painted skies and clouds per time of day: golden hour is in (set G);
   midday (M) and night (N) to come, night with the streams glowing as aurora. Stratus decks drawn
   as decks, with G3's stratus square on top.
-- Phase 5: the rider and board designs (art/model-sheets), replacing the placeholders.
+- Phase 5: the rider and board designs (art/model-sheets), replacing the placeholders: in, as
+  models (art/models: Tavi and Mara rigged and posed by the game, Skipper and Kestrel); their
+  expressions and their own repaint to come.
 - A three-quarter camera that swings out on carves so you see your wave.

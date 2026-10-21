@@ -65,7 +65,8 @@ src/render/trailView.js   the route trail (chevrons) and the next-maneuver ring
 src/render/shaders.js     sky colour, sky pass (clouds; streams when ray marched), ink, composite
                           (painted clouds), tone map, slice, motes
 src/render/motes.js       trapar motes that stream with its flow
-src/render/riderView.js   rider and board, on-foot poses, green sparks, markers, route beam, overlays
+src/render/riderView.js   rider and board (placeholder figure and its poses), green sparks, markers, route beam, overlays
+src/render/riderModel.js  the rider's own models (Tavi or Mara on Skipper or Kestrel), posed each frame to riderView's pose
 src/render/wakeView.js    the board's wake: the trapar wave, white water, takeoff and catch flashes
 src/render/cel.js         cel shading (characters and backgrounds, shaped face and hair normals) and contour lines
 src/render/painted.js     the painted assets (skies, cloud cards, cloud sea) and unTone

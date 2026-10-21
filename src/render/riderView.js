@@ -210,6 +210,18 @@ export class RiderView {
   // The route's destination island (or null).
   setRoute(I) { this.routeIsland = I; this.routeMark.visible = !!I; }
 
+  // The pose the placeholder was just placed in, in the body's frame (facing +X, up +Y, its left
+  // toward -Z): what the rider's own models are posed to (riderModel.js).
+  _setPose(board, air, hip, chest, footL, footR, footY, shoulderL, handL, shoulderR, handR, headYaw) {
+    const p = this.pose || (this.pose = {
+      hip: new THREE.Vector3(), chest: new THREE.Vector3(), footL: new THREE.Vector3(), footR: new THREE.Vector3(),
+      shoulderL: new THREE.Vector3(), handL: new THREE.Vector3(), shoulderR: new THREE.Vector3(), handR: new THREE.Vector3(),
+    });
+    p.board = board; p.air = air; p.footY = footY; p.headYaw = headYaw;
+    p.hip.copy(hip); p.chest.copy(chest); p.footL.copy(footL); p.footR.copy(footR);
+    p.shoulderL.copy(shoulderL); p.handL.copy(handL); p.shoulderR.copy(shoulderR); p.handR.copy(handR);
+  }
+
   update(dt, rider, P, camera) {
     this.shadow.visible = rider.mode === 'foot' && rider.state === 'walking';
     if (this.shadow.visible) {
@@ -262,6 +274,9 @@ export class RiderView {
     this.head.position.set(chest.x + 0.05, chest.y + 0.2, -0.04);
     this.head.rotation.set(0, Math.PI / 2 + 0.9, 0);
     this.bootL.rotation.set(0, 0, 0); this.bootR.rotation.set(0, 0, 0);
+    this._setPose(true, false, hip, chest, footF, footB, 0.06,
+      new THREE.Vector3(0, -0.02, -0.12).add(chest), new THREE.Vector3(0.05, -armDrop, -0.62).add(chest),
+      new THREE.Vector3(0, -0.02, 0.12).add(chest), new THREE.Vector3(0.05, -armDrop, 0.62).add(chest), 0.9);
 
     // Glow under the board while it touches ridable cloud.
     // Brighter while a stream holds you on a steep wall; warm and flickering about to peel.
@@ -402,6 +417,8 @@ export class RiderView {
     placeLimb(this.armR, chest.clone().add(V(0, -0.02, 0.2)), handR);
     this.head.position.copy(chest).add(V(0.03, 0.2, 0));
     this.head.rotation.set(0, Math.PI / 2, 0);
+    this._setPose(false, sky > 0.3 || rider.rollT > 0, hip, chest, footL, footR, 0.05,
+      chest.clone().add(V(0, -0.02, -0.2)), handL, chest.clone().add(V(0, -0.02, 0.2)), handR, 0);
 
     // The board: hidden, or flying in to your feet while you call it.
     const k = rider.summonT > 0 ? rider.summonT / Math.max(0.01, P.summonTime) : -1;
