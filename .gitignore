@@ -1,4 +1,4 @@
-node_modules/
+node_modules
 test/cache/
 test/shots/
 __pycache__/
