@@ -106,7 +106,7 @@ async function boot() {
   const wake = new WakeView(fx);   // the trapar wave and spray a board throws up
   const clouds = new CloudView(backScene, veilScene, pipeline.common, pipeline.exposure);
   const painted = await paintedLoad;
-  if (painted) { pipeline.setPainted(painted); clouds.init(painted); }
+  if (painted) { pipeline.setPainted(painted); clouds.init(painted); islandsView.setArt(painted.islandTex); }
   const motes = new Motes(fx, pipeline.skyUniforms, pipeline.look);
   const cam = new ChaseCam(camera);
   const input = new Input(window);
@@ -242,7 +242,7 @@ async function boot() {
   onResize();
 
   // Exposed for debugging from the browser console.
-  window.sandbox = { world, rider, P, input, camera, pipeline, panel, spawnStorm, newRoute, toIsland, islandsView, streamMesh, guide, trail, wake, clouds, scriptInput: null, camOverride: null, get skyTime() { return skyTime; }, get route() { return route; } };
+  window.sandbox = { world, rider, P, input, camera, pipeline, panel, spawnStorm, newRoute, toIsland, islandsView, streamMesh, guide, trail, wake, clouds, view, motes, scriptInput: null, camOverride: null, get skyTime() { return skyTime; }, get route() { return route; } };
   const camDir = new THREE.Vector3();
 
   let acc = 0, last = performance.now(), frameEma = 16, gpuEma = 8, qualityT = 0, boostRumbleT = 0;

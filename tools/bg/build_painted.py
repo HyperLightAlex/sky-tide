@@ -294,8 +294,10 @@ def build_horizon(spec):
     return strips
 
 
-def build_clouds(spec):
-    rgba = keyed(load(spec['clouds']))
+def build_clouds(spec, cols=3, rows=2, key='clouds', fit=500):
+    """Cut the clouds (or billows) out of their sheet, one per cell of a cols x rows grid, and
+    pack them into an atlas of the same grid, each at most `fit` px."""
+    rgba = keyed(load(spec[key]))
     # Bits of the green left in a ragged cloud's gaps come out teal: no cloud's colour is much
     # greener than the mean of its red and blue.
     rgba[..., 1] = np.minimum(rgba[..., 1], (rgba[..., 0] + rgba[..., 2]) / 2 + 0.03)
@@ -307,11 +309,12 @@ def build_clouds(spec):
     for i, (cy, cx) in enumerate(cents):
         if sizes[i] < 200:
             continue
-        cell = int(cy // (H / 2)) * 3 + int(cx // (W / 3))
+        cell = int(cy // (H / rows)) * cols + int(cx // (W / cols))
         cell_of.setdefault(cell, []).append(i + 1)
     atlas = np.zeros((1024, 1536, 4), np.float32)
+    CW, CH = 1536 // cols, 1024 // rows
     cards = []
-    for cell in range(6):
+    for cell in range(cols * rows):
         ids = cell_of.get(cell, [])
         if not ids:
             continue
@@ -323,14 +326,14 @@ def build_clouds(spec):
         card = rgba[y0:y1, x0:x1].copy()
         card[..., 3] *= m[y0:y1, x0:x1]
         h, w = card.shape[:2]
-        s = min(1.0, 500 / w, 500 / h)
+        s = min(1.0, fit / w, fit / h, (CW - 6) / w, (CH - 6) / h)
         if s < 1:
             im = Image.fromarray((card * 255).astype(np.uint8), 'RGBA').resize((max(1, int(w * s)), max(1, int(h * s))), Image.LANCZOS)
             card = np.asarray(im).astype(np.float32) / 255
             h, w = card.shape[:2]
-        r, c = divmod(cell, 3)
-        ox = c * 512 + (512 - w) // 2
-        oy = r * 512 + (512 - h) // 2
+        r, c = divmod(cell, cols)
+        ox = c * CW + (CW - w) // 2
+        oy = r * CH + (CH - h) // 2
         atlas[oy:oy + h, ox:ox + w] = card
         # Texture coordinates run up from the bottom.
         cards.append(dict(u0=ox / 1536, v0=1 - (oy + h) / 1024, u1=(ox + w) / 1536, v1=1 - oy / 1024, aspect=round(w / h, 4)))
@@ -426,6 +429,14 @@ def main():
         save(sky, os.path.join(d, 'sky.webp'), 84)
         atlas, cards = build_clouds(names)
         save(atlas, os.path.join(d, 'clouds.webp'))
+        # The billows (sheet 4, when made): four shapes (round, wide, a cluster, a flat-bottomed
+        # base billow) in three lights (from above, from the left, in shade), row by row.
+        bname = f'sky-{L}4-billows.png'
+        billows = None
+        if os.path.exists(os.path.join(SHEETS, bname)):
+            batlas, bcards = build_clouds({'billows': bname}, cols=4, rows=3, key='billows', fit=400)
+            save(batlas, os.path.join(d, 'billows.webp'))
+            billows = dict(atlas=f'assets/painted/{name}/billows.webp', cards=bcards)
         surf = build_surfaces(names)
         for k, t in surf.items():
             save(t, os.path.join(d, f'{k}.webp'), 84)
@@ -433,7 +444,9 @@ def main():
         sets[name] = dict(light=spec['light'], sky=rel('sky.webp'), sunU=round(sun, 4), horizonV=round(HAZE / SKY_H, 5),
                           clouds=rel('clouds.webp'), anvil=3 if len(cards) > 3 else None, warm=False,
                           surfaces={k: rel(f'{k}.webp') for k in surf}, cards=cards)
-        print(f'{name}: built ({len(cards)} cards)')
+        if billows:
+            sets[name]['billows'] = billows
+        print(f'{name}: built ({len(cards)} cards{", %d billows" % len(billows["cards"]) if billows else ""})')
     for name, spec in ZENITH.items():
         sets[name] = dict(spec)
     for name, s in sets.items():
@@ -443,7 +456,8 @@ def main():
           '// is across it, where its horizon is), cloud-card atlas and cards (rectangle, v from the\n'
           '// bottom; width over height; outline bottom to top in %d rows as half-width hw and centre cx,\n'
           '// fractions of the card\'s width), which card is the storm (anvil), whether its cloud surfaces\n'
-          '// need warming for golden hour (warm), and its cloud-surface textures.\n'
+          '// need warming for golden hour (warm), its cloud-surface textures, and its billows (atlas and\n'
+          '// rectangles: round, wide, cluster, base, in three lights: from above, from the left, in shade).\n'
           'export const PAINTED_SETS = %s;\n') % (ROWS, json.dumps(sets, separators=(',', ':')))
     with open(MODULE, 'w') as fh:
         fh.write(js)

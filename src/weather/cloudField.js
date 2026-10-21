@@ -78,7 +78,7 @@ export class CloudField {
     for (const a of W.alive) {
       const C = PAINTED_SETS[ss].cards[anvil];
       const w = Math.max(900, a.R * 2.4);
-      this.storms.push({ x: a.x, z: a.z, y: Math.max(0, P.cloudBase - 250), W: w, H: w / C.aspect, life: Math.min(1, a.amp), storm: true, card: { [ss]: anvil }, set: ss, mirror: (a.s && a.s.t0 ? (Math.floor(a.s.t0) & 1) : 0) });
+      this.storms.push({ x: a.x, z: a.z, y: Math.max(0, P.cloudBase - 250), W: w, H: w / C.aspect, life: Math.min(1, a.amp), storm: true, card: { [ss]: anvil }, set: ss, mirror: (a.s && a.s.t0 ? (Math.floor(a.s.t0) & 1) : 0), id: a.s && a.s.t0 ? (Math.floor(a.s.t0 * 977) >>> 0) : 7 });
     }
     // The heaps round the focus: rebuilt when the focus has moved through the air, or the
     // settings changed, or every few seconds (cells come and go).

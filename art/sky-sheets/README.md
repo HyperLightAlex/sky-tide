@@ -9,6 +9,7 @@ in exactly Zenith's layouts, so they drop into the same build:
 | 1 Sky | Half the sky, the half facing the sun, unrolled from the horizon (three quarters down) to straight overhead (the top edge); flat haze below the horizon | Half the sky dome, turned so its glow is round the sun; the haze everything fades into takes its colours from it |
 | 1B Sky | The other half, facing away from the sun, joining sheet 1 at both edges (made with sheet 1 attached) | The other half of the dome |
 | 2 Clouds | Six cloud cards on green, 3x2, in a fixed order (below) | Every cloud in the sky is one of these cards, standing on its flat base and turned to face you; its outline, turned round its upright, is the volume you fly into |
+| 4 Billows | Twelve single billows on green, 4x3: four shapes (round, wide, a cluster, a flat-bottomed base billow) in three lights (from above, from the left, in shade) | Near clouds are built of many billows through the cloud's volume, each lit by where it sits; far ones stay a card, and a cloud swells from its card into billows as you near it |
 | 3 Cloud surfaces | Six tiling squares, 512 px, 3x2, evenly lit | The sea of cloud far below, in patches (1 dense, 2 broken, 5 shaded), and the puffs you pass inside a cloud (windows onto 1 and 5); the mist deep inside a cloud (3 lit, 6 in shade); the tops of stratus decks (4, later) |
 
 **The cloud cards' order matters.** The game picks cards by shape: towers for the tall heaps,
@@ -34,6 +35,7 @@ then a high sun uses Zenith's Helios set and night uses G. Image model: not yet 
 | G1 | `sky-g1-sky.png` | Second of two takes (G1B was made from it; the takes are near-identical; the first is in `alt/`). Horizon at row 763 (asked 768; the builder finds it), flat haze, plain deep blue along the top, the sun's glow at the middle. Its clouds are fanned in perspective toward the sun, which in the round reads as cloud streets running toward the sun. |
 | G1B | `sky-g1b-sky.png` | Used. The model kept G1's cloud layout and repainted the light (rose horizon, no glow), so its clouds do not meet G1's at the edges: the builder overlaps the halves by 160 px and cuts each join through the gaps between clouds. The same fan, facing away, reads as the streets running on to the point opposite the sun. |
 | G2 | `sky-g2-clouds.png` | Used as made: flat key (#02FA02), all six in their cells and in order, flat bases, nothing green in the clouds, no halo. The storm's lower half is lavender-violet rather than dark slate, which suits golden hour. |
+| G4 | `sky-g4-billows.png` | Second of two takes (the first, in `alt/`, has the same shapes with the same outline in all three lights, but several billows touch their cells' edges). Flat key, nothing green, all twelve inside their cells, each column one outline across its three lights, flat bottoms on the base billows. The near clouds are built of them. |
 | G3 | `sky-g3-cloud.png` | Second of two takes (the first is in `alt/`): it wraps far better (the first's squares 5 and 6 only repeated when cut to about 320 px). The builder makes each square repeat with a cut where the edges agree. Squares 1, 2 and 5 are the cloud sea (and 1 and 5 the puffs inside a cloud); 3 and 6 are the mist deep inside a cloud: as puffs they were too soft to read against it. 4 (stratus tops) waits for stratus decks to be drawn as decks. |
 
 ## Golden hour (G)
@@ -97,6 +99,31 @@ Same size (1536x1024), same style and palette as the attached sheet, the horizon
 The attached sheet is the half of the sky that faces the low sun. Paint the other half, the sky behind the viewer, facing away from the sun. Its left edge must continue seamlessly from the attached sheet's right edge, and its right edge must continue seamlessly into the attached sheet's left edge, so that the two sheets side by side make the whole sky round.
 
 No sun and no golden glow here: the sky facing away from a low sun is cooler and a clearer blue, with a soft band of dusky rose and lavender just above the horizon. The high cirrus streaks and the broken band of flat-bottomed altocumulus carry on across it, a little sparser than on the sun side, their faces lit warm pink-gold by the sun behind the viewer, lavender-blue in shadow. No big cumulus. No sun disc, no text, no outlines.
+```
+
+Sheet G4, made after the others (it was added later), with G2 and G1 attached:
+
+```
+SHEET G4: CLOUD BILLOWS (attach sheet G2 for the style, palette and light, sheet G1 for the sky's palette, and lifting reference frames 19, 22 and 33)
+
+Twelve single cloud billows on perfectly flat pure green, #00FF00, for building clouds out of many pieces. The game stacks dozens of them through a cloud's volume, nearer ones over farther ones, and lights each by where it sits in the cloud, so each billow must be complete on its own and match the clouds on the attached sheet G2 exactly in style and palette.
+
+STYLE: as sheet G2. Background art from a Japanese TV anime of around 2005, painted digitally by hand: four or five flat values per billow (lit, mid, shadow, deep shadow, a little reflected light), the tones crisply separated with soft, controlled brush edges and a dappled texture of small rounded strokes inside. No ink outlines. Not a photo, not a 3D render, not a modern painterly illustration: no bloom, glow, blur, grain or noise.
+
+THE GREEN: perfectly flat pure green #00FF00 all round the billows, with no shading, texture, gradient, glow or shadow on it; nothing in the billows green or close to it. Each billow's edge is a soft, controlled brush edge a few pixels wide against the green, with no halo, rim light or glow outside it.
+
+LAYOUT: 1536x1024, landscape, an invisible 4x3 grid (cells 384 wide, 341 tall). One billow centred in each cell, filling about 80% of it, never touching the cell's edges or another billow. Nothing else on the sheet: no text, numbers, labels, borders, signatures or watermarks.
+
+COLUMNS, the same four shapes in every row:
+1. a round billow: one rounded, cauliflower-like lump, about as tall as wide, with a few smaller bulges round its edge;
+2. a wide billow: a lump about twice as wide as tall, with a soft rounded top and a gently rounded underside;
+3. a cluster: three or four small billows of different sizes grown together;
+4. a base billow: a lump with a rounded top and a perfectly flat, level bottom edge, from the bottom of a cloud.
+
+ROWS, the same four billows in three lights:
+- top row, lit from above: cream-gold #FFE9C4 on top, peach #F4B88E in the middle, lavender-blue #8088C0 only in the creases underneath;
+- middle row, lit from the left: the left half cream-gold and peach, the right half lavender-blue, the deepest creases violet-slate #4F4E7E (the game mirrors it for light from the right);
+- bottom row, in shade (the underside or the far side of a cloud, away from the sun): lavender-blue #8088C0 and violet-slate #4F4E7E, with only a thin warm peach rim along the top edge.
 ```
 
 ## Midday (M)

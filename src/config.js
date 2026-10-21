@@ -377,6 +377,8 @@ export const SCHEMA = [
       ['exposure', 0.85, 0.2, 3, 0.01, 'Exposure'],
       ['extinction', 0.02, 0.002, 0.08, 0.001, 'Ray-marched trapar opacity'],
       ['cloudSea', true, null, null, null, 'Cloud sea below'],
+      ['cloudBillows', true, null, null, null, 'Clouds swell into 3D billows up close (off: flat cards)'],
+      ['cloudSeaRelief', true, null, null, null, 'Cloud sea raised into billows near you (off: flat)'],
       ['fogDistance', 7000, 500, 20000, 100, 'Haze distance (m)'],
       ['sunElevation', 16, -5, 89, 1, 'Sun elevation (deg)'],
       ['sunAzimuth', 215, 0, 360, 1, 'Sun azimuth (deg)'],

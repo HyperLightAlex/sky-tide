@@ -311,9 +311,9 @@ export class RiderView {
         this.wakeAcc -= 1;
         const i = this.wakeHead; this.wakeHead = (this.wakeHead + 1) % n;
         const side = (Math.random() - 0.5) * 0.5;
-        this.wakePos[i * 3] = rider.pos.x - f.x * 0.9 + r.x * side - u.x * 0.06;
-        this.wakePos[i * 3 + 1] = rider.pos.y - f.y * 0.9 + r.y * side - u.y * 0.06;
-        this.wakePos[i * 3 + 2] = rider.pos.z - f.z * 0.9 + r.z * side - u.z * 0.06;
+        this.wakePos[i * 3] = rider.pos.x - f.x * 0.75 + r.x * side - u.x * 0.06;
+        this.wakePos[i * 3 + 1] = rider.pos.y - f.y * 0.75 + r.y * side - u.y * 0.06;
+        this.wakePos[i * 3 + 2] = rider.pos.z - f.z * 0.75 + r.z * side - u.z * 0.06;
         const spray = 0.6 + sp * 0.05;
         this.wakeVel[i * 3] = flow.x + (Math.random() - 0.5) * spray + u.x * spray * 0.6;
         this.wakeVel[i * 3 + 1] = flow.y + (Math.random() - 0.5) * spray + u.y * spray * 0.6;

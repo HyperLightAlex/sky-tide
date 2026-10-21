@@ -22,8 +22,8 @@ distribution), what each frame shows, in production terms:
 | Its **body** is see-through sea-glass teal, clouds showing behind | translucent teal, premultiplied over the sky |
 | A **green glow** along its base: the trapar | lime body, gold-white core, brightest behind the board |
 | A **core of pastel rainbow sparkle** right behind the board | hashed dots in the young part of the base |
-| **White water dashes** fly off | streak particles (hard-edged capsules) |
-| **Takeoff**: white burst at the lip, a fan of spray, flecks trailing the board | the takeoff flash and burst |
+| **White water dashes** fly off | none for now: as streaks they read as spikes under the glow (`SPRAY` in `wakeView.js`); a drawn spray from the effect sheets later |
+| **Takeoff**: white burst at the lip, a fan of spray, flecks trailing the board | the takeoff flash |
 | **Catching** a stream: a green-gold flash, the wave building again | the catch flash |
 | **Clouds**: painted heaps, white or gold tops, slate shadow sides, dappled brushwork, layered by depth | painted cloud cards (Skytide's golden-hour sheet; Zenith's Helios under a high sun) with a volume you fly into (`render/cloudView.js`) |
 | Characters: thin dark lines, two flat tones, cool muted shadows | `render/cel.js` |
@@ -63,9 +63,12 @@ depth but not writing it.
 
 See the table above. Samples of the board's path (in the frame of travel, smoothed, so riding
 switch or a bumpy surface does not twist it) carry the carve, taken from how fast the path
-turns: the outside of a carve throws the tall wall. The wave peels off the rail and rises over
-the first few metres behind the board (longer the faster you go), so it always grows out of the
-board; each ride on a stream is one wave, rising from where you caught it and tapering off
+turns: the outside of a carve throws the taller wall. The wave leaves the rail just behind the
+back foot (the start of the board's last fifth) and grows out of it over the first couple of
+metres (longer the faster you go). It stands about 3 m riding straight and up to about 6 m on
+the outside of a hard carve. (Much lower and its lines, kinks and sparkles, sized in metres along
+the path, crowd the sheet and read as spikes.) Each ride on a
+stream is one wave, rising from where you caught it and tapering off
 where you left. It falls away over two seconds. Everything moves every frame: the lines, kinks
 and sparkles are tied to the distance along the path and only drift slowly, so they stay on the
 wave instead of being re-drawn. Green comes from `PALETTE.trapar` and `traparCore`
@@ -102,6 +105,20 @@ is made) and a **volume**.
   edge on. Hazed with distance. Cards are drawn farthest first, after the sky and the solid
   world: a depth pass writes their solid parts (so streams behind are hidden), then the painting
   is laid over.
+- **Billows near you.** Far off a cloud is its card, which keeps the flat painted background
+  look; once it is big in the view (its size over its distance from 0.22, in place by 0.6) it
+  swells into 22 to 60 billows through its volume, so as you go round it its parts move against
+  one another and its outline changes. The billows are pieces of the card first: lying flat on
+  it, each showing the painting where it lies, so the cloud looks exactly like its card. Then
+  they spread into the volume, turn to face you, and become the painted billows of sheet G4:
+  flat-bottomed along the base, otherwise round, wide (more in wide clouds) or a cluster, each in
+  the light where it sits against the sun (facing it: lit from above; edge on: lit from the side,
+  mirrored to the sun's side; away: in shade, with its warm rim). The card stays inside as a
+  solid core, a little smaller, so the cloud is never see-through. Each billow is drawn at one
+  depth, so billows never cut through one another; one that would fill much of the view fades,
+  and close up the puffs inside take over. At most 2000 billows, the clouds biggest in the view
+  first. A set without a billow sheet (Helios) keeps its card's pieces, the side away from the
+  sun tinted lavender. `Clouds swell into 3D billows` (Rendering) turns it off.
 - **The volume** is the card's silhouette turned round its upright (`tools/bg/build_painted.py`
   reads each card's outline from its atlas into `world/paintedSets.js`), so the painting and the
   volume agree from every side. It is what shakes you (turbulence) and what the HUD reports.
@@ -112,6 +129,11 @@ is made) and a **volume**.
   a cloud (lit higher up, in shade low down), about a screen high and turning with the view, so
   there are big soft billows behind the puffs streaming past. Zenith's sets have no inside
   paintings: their mist is the cloud's colour, and their puffs are warmed at golden hour.
+- **The cloud sea, raised near you**: within about 2.6 km the sea is a grid that follows you,
+  raised into the painting's own billows (its bright tops up, its creases down, up to about 75 m
+  either way), shaded smoothly with the side away from the sun toward lavender, and flattening
+  into the painted plane by 2.3 km, where the flat sea takes over with the same painting, so
+  there is no seam. `Cloud sea raised` (Rendering) turns it off.
 - **The cloud sea**: the set's painted sea of cloud, far below at the floor (fall into it and you
   are gone), drifting, each painting at two sizes blended by a slow noise so its billows never
   line up, hazed into the horizon. A set of Skytide's own has three paintings of it (dense,
@@ -147,8 +169,23 @@ shape, multiplied) sits under the rider.
 Backgrounds: the same lit tone with a gentler shadow. Lined by the **ink pass**
 (`INK_FRAG`), which runs on the solid world before the sky goes behind it: an outline where it
 meets the sky and lines at its creases (where the depth bends), in a deeper, cooler shade of
-the paint under them, fading with distance. Painted surfaces come from
-[art/island-sheets](art/island-sheets/README.md).
+the paint under them, fading with distance.
+
+The paint is the island sheets ([art/island-sheets](art/island-sheets/README.md), cut by
+`tools/bg/build_islands.py`): twelve repeating squares in one texture array under the cel
+shading. The ground is turf with meadow grass in wide patches, drifts of wildflowers, bare
+earth here and there and moss over stone toward the rim, each square laid flat (about 7.5 m to a
+square). The rim and the underside are rock (about 24 m to a square): layered and weathered in
+broad patches, crumbling at the lip, roots and hanging moss just under it, crystal veins deep
+down, each laid on from three sides and blended by which way the rock faces, so it never
+stretches and the strata stay level. Patches follow slow noise in the world, offset per island.
+
+**Far islands**: past the meshes' 7 km, each island is a painted card from sheet 4 (the one that
+suits its shape: a deep one the spire, the widest the meadow or the arch, the rest by its seed),
+stood with the card's ground rim at the island's ground, as wide as the island and no taller
+than it hangs, drawn and sorted with the cloud cards and hazed the same way. They fade in as the
+meshes go (6.5 to 7.3 km) and out into the haze by 17 km. The cards with a waterfall, trees or a
+tower carry what the mesh does not have, but only past 7 km, deep in the haze.
 
 ### Framing
 
@@ -186,7 +223,8 @@ The look is judged by eye, in pictures that can be compared: `skytide-test/look-
 renders the same moment from several cameras (chase, three-quarter left and right, side,
 wide, low; and on the nearest big cloud: `cloudFar`, `cloudNear`, `cloudEdge`, `cloudIn`,
 `cloudDeep`; round the sky from the rider: `sun`, `anti`, `joinL` and `joinR` (where the painted
-halves meet) and `sea`, `seaFar`), with `ROOT` for before/after, `ASPECT=4:3` for the screen shape, `WARM` seconds of
+halves meet) and `sea`, `seaFar`; on the nearest island: `islNear`, `islUnder`, `islTop`, and
+`islFar` for the islands on the horizon), with `ROOT` for before/after, `ASPECT=4:3` for the screen shape, `WARM` seconds of
 riding first (with `LEAN` held) so the wake has built, `PRE` for any setting (for example
 `window.sandbox.P.sunElevation=55` for midday), and `SEQ` frames at `SEQDT` seconds apart from
 `SEQCAM` for checking motion (a continuous effect must not flicker from frame to frame).

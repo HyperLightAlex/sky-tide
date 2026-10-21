@@ -6,9 +6,9 @@
 //   its body    see-through sea-glass teal
 //   its base    the green glow of the trapar itself, brightest right behind the board, with a
 //               core of pastel rainbow sparkle
-//   water       white dashes flung off the crest
+//   (spray      streaks flung off the crest: off, see SPRAY)
 //
-// and two moments: leaving a stream (a white burst at the lip, a fan of spray, a few flecks
+// and two moments: leaving a stream (a white burst at the lip, a fan of sparks, a few more
 // trailing the board) and catching one (a green-gold flash at the board, the wave building
 // again from there).
 //
@@ -24,6 +24,13 @@ const N = 128;            // trail samples kept
 const V = 7;              // rows up each sheet
 const MAXAGE = 2.0;       // seconds a stretch of wave lives
 const MAXDASH = 420;
+// The spray streaks thrown off the crest, at takeoff and after it are off: under the glow they
+// read as spikes. (The wave, the flashes and the board's green sparks carry the moment.) Their
+// code stays, for a drawn spray from the effect sheets later.
+const SPRAY = false;
+// Where the wave leaves the board: just behind the back foot (0.33 m behind the middle), at the
+// start of the board's last fifth (the board is 1.96 m long).
+const WAKE_START = 0.65;
 
 const WAVE_VERT = /* glsl */ `
 attribute vec4 aW;        // age (0..1 of its life), up the sheet (0 base .. 1 crest), side, strength
@@ -99,29 +106,25 @@ void main() {
 }
 `;
 
-// White water: short streaks along their motion, a steady width on screen.
+// Spray: crisp round sparks of green trapar, the same as the board's trail (render/riderView.js),
+// a few pixels across, shrinking as they fade. (They were white streaks along their motion,
+// which the glow turned into spikes.)
 const DASH_VERT = /* glsl */ `
 attribute vec3 iPos;
 attribute vec3 iVel;
 attribute vec2 iLife;     // age, life
-attribute vec2 aCorner;   // x along (-1..1), y across (-1..1)
+attribute vec2 aCorner;   // -1..1 each way
 varying float vA;
 varying vec2 vC;
 uniform float uPx;        // a pixel at 1 m, in metres
 void main() {
   vec4 c = viewMatrix * vec4(iPos, 1.0);
-  vec3 vv = (viewMatrix * vec4(iVel, 0.0)).xyz;
   float z = max(-c.z, 0.2);
-  // Along the motion on screen.
-  vec2 d = vv.xy * z + c.xy * vv.z;      // the motion as seen on screen
-  float dl = length(d);
-  vec2 dir = dl > 1e-4 ? d / dl : vec2(1.0, 0.0);
-  float len = clamp(length(iVel) * 0.035, 0.12, 1.1) * (1.0 - 0.5 * iLife.x / max(iLife.y, 1e-3));
-  float wid = max(0.035, uPx * z * 1.6);
-  vec2 off = dir * aCorner.x * len + vec2(-dir.y, dir.x) * aCorner.y * wid;
-  c.xy += off;
-  vA = 1.0 - smoothstep(0.55, 1.0, iLife.x / max(iLife.y, 1e-3));
-  if (iLife.x >= iLife.y) vA = 0.0;
+  float k = iLife.x / max(iLife.y, 1e-3);
+  vA = iLife.x >= iLife.y ? 0.0 : 1.0 - smoothstep(0.5, 1.0, k);
+  // (as the trail's points: about 220 * (0.08 + 0.1 * fade) / z pixels, 1 to 6 across)
+  float px = clamp(220.0 * (0.08 + 0.1 * (1.0 - vA)) / z, 1.0, 6.0);
+  c.xy += aCorner * px * 0.5 * uPx * z;
   vC = aCorner;
   gl_Position = projectionMatrix * c;
 }
@@ -131,11 +134,8 @@ uniform vec3 uColor;
 varying float vA;
 varying vec2 vC;
 void main() {
-  // A capsule, hard edged (a drawn dash), tapering toward its tail.
-  float r = 1.0 - smoothstep(0.75, 1.0, length(vec2(max(abs(vC.x) - 0.6, 0.0) / 0.4, vC.y / (0.55 + 0.45 * (vC.x * 0.5 + 0.5)))));
-  float a = vA * r;
-  if (a < 0.02) discard;
-  gl_FragColor = vec4(uColor * a, a);
+  if (dot(vC, vC) > 1.0 || vA < 0.02) discard;
+  gl_FragColor = vec4(uColor, vA);
 }
 `;
 
@@ -219,7 +219,7 @@ export class WakeView {
     this.mesh.renderOrder = 2;
     fxScene.add(this.mesh);
 
-    // White water dashes.
+    // Spray: green sparks.
     const q = new THREE.InstancedBufferGeometry();
     q.setAttribute('aCorner', new THREE.BufferAttribute(new Float32Array([-1, -1, 1, -1, 1, 1, -1, 1]), 2));
     q.setAttribute('position', new THREE.BufferAttribute(new Float32Array(12), 3));
@@ -233,8 +233,9 @@ export class WakeView {
     q.instanceCount = MAXDASH;
     this.dHead = 0;
     this.dashMat = new THREE.ShaderMaterial({
-      vertexShader: DASH_VERT, fragmentShader: DASH_FRAG, ...premult,
-      uniforms: { uColor: { value: new THREE.Color(1.3, 1.35, 1.4) }, uPx: { value: 0.001 } },
+      vertexShader: DASH_VERT, fragmentShader: DASH_FRAG,
+      transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+      uniforms: { uColor: { value: PALETTE.trapar.clone().multiplyScalar(2.2) }, uPx: { value: 0.001 } },
     });
     this.dashes = new THREE.Mesh(q, this.dashMat);
     this.dashes.frustumCulled = false;
@@ -268,6 +269,7 @@ export class WakeView {
   }
 
   _dash(x, y, z, vx, vy, vz, life) {
+    if (!SPRAY) return;   // (the streaks are off: see SPRAY)
     const i = this.dHead; this.dHead = (this.dHead + 1) % MAXDASH;
     this.dPos[i * 3] = x; this.dPos[i * 3 + 1] = y; this.dPos[i * 3 + 2] = z;
     this.dVel[i * 3] = vx; this.dVel[i * 3 + 1] = vy; this.dVel[i * 3 + 2] = vz;
@@ -285,7 +287,8 @@ export class WakeView {
     dt = Math.max(0, dt);
     this.time += dt;
     const on = P.showWake !== false;
-    this.mesh.visible = this.dashes.visible = on;
+    this.mesh.visible = on;
+    this.dashes.visible = on && SPRAY;
     const board = rider.mode === 'board';
     const riding = board && rider.state === 'riding';
     // The frame of travel (the board may be ridden switch): f along the motion, r to its right.
@@ -301,8 +304,8 @@ export class WakeView {
     this._fs.lerp(f, ks); this._fs.addScaledVector(u, -this._fs.dot(u)).normalize();
     f.copy(this._fs);
     const r = this._r.crossVectors(f, u).normalize();
-    // The wave peels off the rail just behind the middle of the board.
-    const tail = this._tail.set(rider.pos.x - f.x * 0.35, rider.pos.y - f.y * 0.35, rider.pos.z - f.z * 0.35);
+    // The wave peels off the rail just behind the back foot.
+    const tail = this._tail.set(rider.pos.x - f.x * WAKE_START, rider.pos.y - f.y * WAKE_START, rider.pos.z - f.z * WAKE_START);
     const relSp = Math.max(rider.dbg.speedRel || 0, rider.vis.speed * 0.5);
     this.speed = rider.vis.speed;
     const strength = riding ? THREE.MathUtils.clamp((relSp - 4) / 26, 0, 1) * rider.vis.contact : 0;
@@ -368,7 +371,7 @@ export class WakeView {
         this.dAcc -= 1;
         const side = Math.abs(lean) > 0.15 ? Math.sign(lean) * (Math.random() < 0.8 ? 1 : -1) : (Math.random() < 0.5 ? -1 : 1);
         const hgt = this._height(strength, lean, side) * (0.6 + Math.random() * 0.4);
-        const back = 1.5 + Math.random() * 5;
+        const back = 1.0 + Math.random() * 3.5;
         const x = tail.x - f.x * back + u.x * hgt + r.x * side * (0.3 + hgt * 0.5);
         const y = tail.y - f.y * back + u.y * hgt + r.y * side * (0.3 + hgt * 0.5);
         const z = tail.z - f.z * back + u.z * hgt + r.z * side * (0.3 + hgt * 0.5);
@@ -377,7 +380,7 @@ export class WakeView {
           rider.vel.z * 0.55 + r.z * side * s + u.z * up, 0.35 + Math.random() * 0.5);
       }
     }
-    // After leaving: a few white flecks trailing the board's tail.
+    // After leaving: a few sparks trailing the board's tail.
     if (board && !riding && this.afterT < 1.2) {
       this.fAcc = (this.fAcc || 0) + dt * 22 * (1 - this.afterT / 1.2);
       while (this.fAcc >= 1) {
@@ -414,17 +417,19 @@ export class WakeView {
     this._build(tail, u, r, strength, lean, riding);
   }
 
+  // How tall the wave stands (m): about 3 m riding straight, up to about 6 m on the outside of a
+  // hard carve, lower on the inside (seven tenths of what it was, so the chase camera sees past it).
   _height(strength, lean, side) {
-    return strength * (2.8 + 5.0 * THREE.MathUtils.clamp(side * lean * 1.4 + 0.3, 0, 1.3));   // (lean here: the carve, + outside to the right)
+    return strength * (1.95 + 3.5 * THREE.MathUtils.clamp(side * lean * 1.4 + 0.3, 0, 1.3));   // (lean here: the carve, + outside to the right)
   }
 
   _build(tail, u, r, strength, lean, riding) {
     const pos = this.pos, aw = this.aw, as = this.as, idx = this.idx;
     let nv = 0, ni = 0;
     const tNow = this.time;
-    // The wave rises over the first few metres behind the board (longer the faster it goes),
-    // so it always peels off the rail rather than appearing behind it.
-    const rise = 1.5 + Math.min(60, this.speed) * 0.12;
+    // The wave rises off the rail over the first couple of metres behind the board (longer the
+    // faster it goes), so it always grows out of the board rather than appearing behind it.
+    const rise = 0.8 + Math.min(60, this.speed) * 0.06;
     for (let side = -1; side <= 1; side += 2) {
       const start = nv / V;
       let cols = 0;
