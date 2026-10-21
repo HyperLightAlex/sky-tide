@@ -88,8 +88,11 @@ arms by two-bone reaching (knees forward, elbows down and back), the feet in the
 holds while riding (`FootHold_Front` for the left foot), the hips lowered if the feet could
 not reach, the hips and shoulders turned toward the nose, the shoulders lifting as the arms
 rise. The board's trapar paint is drawn again in the effects pass to glow with the ride.
-Each model is read as `.glb`, or else as `<name>.gltf.json` (glTF with its data inside, made by
-`tools/models/glb_to_json.py`) for hosts that do not serve `.glb`, as the published sandbox.
+Each model is read as `.glb`, or else, for hosts that do not serve `.glb` (the published
+sandbox), from what `tools/models/glb_to_json.py` makes of it: `<name>.gltf.json` with the
+geometry inside as base64, which the game decodes itself (that page may fetch only its own
+files, not `data:` addresses), and the texture beside it as `<name>.jpg`. `test/rider-shots.mjs`
+with `CSP=1` serves the game under those limits.
 Pictures from the game: `docs/progress/sky-tide-rig.png`.
 
 ## Checking

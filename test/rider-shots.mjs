@@ -11,7 +11,7 @@ import path from 'path';
 const ROOT = process.env.ROOT || new URL('..', import.meta.url).pathname;
 const PORT = +(process.env.PORT || 8772);
 const OUT = process.env.OUT || new URL('./shots/rider', import.meta.url).pathname;
-const types = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.png': 'image/png', '.webp': 'image/webp', '.json': 'application/json', '.glb': 'model/gltf-binary' };
+const types = { '.jpg': 'image/jpeg', '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.png': 'image/png', '.webp': 'image/webp', '.json': 'application/json', '.glb': 'model/gltf-binary' };
 const server = http.createServer((req, res) => {
   let p = decodeURIComponent(req.url.split('?')[0]);
   if (p === '/') p = '/index.html';
@@ -19,7 +19,10 @@ const server = http.createServer((req, res) => {
   if (!fs.existsSync(f)) { res.writeHead(404); res.end(); return; }
   let body = fs.readFileSync(f);
   if (p === '/index.html') body = Buffer.from('<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body>' + body + '</body></html>');
-  res.writeHead(200, { 'content-type': types[path.extname(f)] || 'application/octet-stream' });
+  // CSP=1: the published sandbox's limits (scripts only from the CDNs, fetches only from the page's
+  // own files, images also from data: and blob:)
+  const csp = process.env.CSP ? { 'content-security-policy': "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net blob:; worker-src 'self' blob:; connect-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'" } : {};
+  res.writeHead(200, { 'content-type': types[path.extname(f)] || 'application/octet-stream', ...csp });
   res.end(body);
 }).listen(PORT);
 

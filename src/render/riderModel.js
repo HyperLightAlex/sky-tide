@@ -21,12 +21,17 @@ const V = () => new THREE.Vector3();
 const Q = () => new THREE.Quaternion();
 
 /** Load the four models (resolves to null if any is missing: the placeholder stays). Each is
- *  read as glTF binary, or else as glTF with its data inside (<name>.gltf.json, made by
- *  tools/models/glb_to_json.py for hosts that do not serve .glb files). */
+ *  read as glTF binary, or else from the files tools/models/glb_to_json.py makes for hosts that
+ *  do not serve .glb (the published sandbox): glTF JSON with its geometry inside, decoded here
+ *  (that page may fetch only its own files, not data: addresses), and its images beside it. */
 export async function loadRiderModels() {
   const loader = new GLTFLoader();
-  const load = (file) => loader.loadAsync(new URL(`../../assets/models/${file}.glb`, import.meta.url).href)
-    .catch(() => loader.loadAsync(new URL(`../../assets/models/${file}.gltf.json`, import.meta.url).href));
+  const base = new URL('../../assets/models/', import.meta.url).href;
+  const load = (file) => loader.loadAsync(`${base}${file}.glb`).catch(async () => {
+    const res = await fetch(`${base}${file}.gltf.json`);
+    if (!res.ok) throw new Error(`${file}: no model (${res.status})`);
+    return loader.parseAsync(packGlb(await res.json()), base);
+  });
   try {
     const entries = await Promise.all(Object.entries(FILES).map(async ([name, file]) => [name, await load(file)]));
     return Object.fromEntries(entries);
@@ -34,6 +39,26 @@ export async function loadRiderModels() {
     console.warn('rider models not loaded; keeping the placeholder', e);
     return null;
   }
+}
+
+/** glTF JSON whose one buffer is a base64 data: address, as a glTF binary. */
+function packGlb(json) {
+  const uri = json.buffers[0].uri;
+  const raw = atob(uri.slice(uri.indexOf(',') + 1));
+  const bin = new Uint8Array(raw.length);
+  for (let i = 0; i < raw.length; i++) bin[i] = raw.charCodeAt(i);
+  delete json.buffers[0].uri;
+  const js = new TextEncoder().encode(JSON.stringify(json));
+  const jsPad = (4 - (js.length % 4)) % 4, binPad = (4 - (bin.length % 4)) % 4;
+  const total = 12 + 8 + js.length + jsPad + 8 + bin.length + binPad;
+  const out = new Uint8Array(total), dv = new DataView(out.buffer);
+  dv.setUint32(0, 0x46546C67, true); dv.setUint32(4, 2, true); dv.setUint32(8, total, true);
+  dv.setUint32(12, js.length + jsPad, true); dv.setUint32(16, 0x4E4F534A, true);
+  out.set(js, 20); out.fill(0x20, 20 + js.length, 20 + js.length + jsPad);
+  const b = 20 + js.length + jsPad;
+  dv.setUint32(b, bin.length + binPad, true); dv.setUint32(b + 4, 0x004E4942, true);
+  out.set(bin, b + 8);
+  return out.buffer;
 }
 
 // ---- small geometry ------------------------------------------------------------------------
