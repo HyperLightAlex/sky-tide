@@ -68,6 +68,12 @@ src/render/motes.js       trapar motes that stream with its flow
 src/render/riderView.js   rider and board, on-foot poses, green sparks, markers, route beam, overlays
 src/render/wakeView.js    the board's wake: the trapar wave, white water, takeoff and catch flashes
 src/render/cel.js         cel shading (characters and backgrounds) and the characters' contour lines
+src/render/painted.js     the painted assets (skies, cloud cards, cloud sea) and unTone
+src/render/cloudView.js   painted cloud cards, the cloud sea, puffs and mist inside a cloud
+src/weather/cloudField.js the clouds as things: heaps in the moving air, their lives and volumes
+src/world/cloudCards.js   each cloud card's rectangle and outline (generated)
+tools/clouds/build_cards.py   builds cloudCards.js from the cloud atlases
+assets/painted/           painted skies, cloud cards and cloud sea (Zenith GP's, reused for now)
 src/render/islandsView.js island meshes near the camera
 src/render/camera.js      chase camera; orbit camera on foot
 src/debug/hud.js          heads-up display and conditions
@@ -309,9 +315,10 @@ small steps.
   skin), and the skin between the camera and you thins out, so you are never hidden.
 
 Since v15 the streams are translucent (the anime look: see [ART.md](ART.md)): they are drawn in
-their own pass after the clouds, test against the solid world's depth without writing it, and
-are hidden by clouds in front through the cloud depth the sky pass now writes (a second render
-target). The clouds are painted over in the composite; an ink pass lines the solid world.
+their own pass after the clouds and test against the depth of the solid world and the clouds
+without writing it. Since v16 the clouds are painted cards with volumes (no ray march: the sky
+pass runs only for the ray-marched comparison view), which roughly halved the frame's cost; an
+ink pass lines the solid world.
 - Physics runs at 120 Hz on the main thread (about 0.4 ms a step riding); snapshots and routes
   are built in a worker.
 

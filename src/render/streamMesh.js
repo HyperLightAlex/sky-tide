@@ -7,9 +7,8 @@
 // Three levels of detail by distance, culled to the view on the CPU each frame. Drawn in their
 // own scene after the sky and clouds (pipeline.js) as translucent blue light: brushed streaks
 // carried by the flow, white lines along the lips and crests, brighter up toward the lips,
-// sparkles; hidden by
-// clouds in front through the cloud depth the sky pass writes, and behind the solid world by
-// its depth.
+// sparkles; hidden behind the solid world and the painted clouds by their depth
+// (render/cloudView.js).
 
 import * as THREE from 'three';
 import { SKY_GLSL } from '../sky/sky.js';
@@ -136,8 +135,6 @@ uniform vec3 uTrBody[6], uTrCore[6];     // per kind: tangle, main, crown, updra
 uniform vec3 uPulseOrigin;
 uniform float uPulseRadius, uPulseStrength, uPulseWidth;
 uniform vec3 uRiderPos, uRiderUp;
-uniform sampler2D tCloud, tCloudDepth;   // the sky pass: clouds (alpha: what shows through) and where they thicken
-uniform vec2 uRes;
 varying vec3 vWorld;
 varying vec3 vNormal;
 varying float vAlpha;
@@ -146,18 +143,6 @@ varying vec3 vFlow;
 varying float vCls;
 varying vec4 vSurf;
 
-// How much of the stream at distance ts shows through the clouds in front of it.
-float cloudPass(float ts) {
-  vec2 uv = gl_FragCoord.xy / uRes;
-  float Tf = texture2D(tCloud, uv).a;
-  Tf = Tf < 0.1 ? 0.0 : Tf;     // (the sky pass stops in thick cloud before it is fully opaque)
-  vec2 cd = texture2D(tCloudDepth, uv).xy;
-  float T;
-  if (ts < cd.x) T = 1.0;
-  else if (cd.y < 50000.0) T = ts < cd.y ? mix(0.9, 0.5, (ts - cd.x) / max(1.0, cd.y - cd.x)) : Tf;
-  else T = mix(0.9, Tf, clamp((ts - cd.x) / 250.0, 0.0, 1.0));
-  return max(T, Tf);
-}
 float hash12(vec2 p) { vec3 p3 = fract(vec3(p.xyx) * 0.1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }
 vec2 hash22(vec2 p) { vec3 p3 = fract(vec3(p.xyx) * vec3(0.1031, 0.1030, 0.0973)); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.xx + p3.yz) * p3.zy); }
 
@@ -290,7 +275,7 @@ void main() {
     a *= mix(0.15, 1.0, smoothstep(rad * 0.55, rad, perp));
   }
   a *= smoothstep(1.0, 5.0, ts);
-  a = clamp(a, 0.0, 1.0) * cloudPass(ts);
+  a = clamp(a, 0.0, 1.0);   // (clouds in front hide it by their depth)
   // Premultiplied, with the cover only partly blocking what is behind (light adds).
   gl_FragColor = vec4(c * a, a * 0.8);
 }
@@ -332,7 +317,6 @@ export class StreamMesh {
       uOutline: { value: 1 }, uContours: { value: 0.7 }, uContourStep: { value: 12 }, uFogDist: { value: 7000 },
       uPulseOrigin: { value: new THREE.Vector3() }, uPulseRadius: { value: 0 }, uPulseStrength: { value: 0 }, uPulseWidth: { value: 120 },
       uRiderPos: { value: new THREE.Vector3() }, uRiderUp: { value: new THREE.Vector3(0, 1, 0) },
-      tCloud: { value: null }, tCloudDepth: { value: null }, uRes: { value: new THREE.Vector2(1, 1) },
     };
     // Translucent: drawn after the sky and clouds (pipeline.js), tested against the solid
     // world's depth but not writing it, premultiplied.
@@ -388,9 +372,6 @@ export class StreamMesh {
     u.uSkinOpacity.value = P.skinOpacity; u.uSkinGlow.value = P.skinGlow; u.uStripes.value = P.flowStripes;
     u.uSwellHi.value = P.waterOn ? P.waveShade : 0; u.uOutline.value = P.outline;
     u.uContours.value = P.contours; u.uContourStep.value = P.contourStep; u.uFogDist.value = P.fogDistance;
-    u.tCloud.value = pipeline.cloudRT.textures[0];
-    u.tCloudDepth.value = pipeline.cloudDepth;
-    u.uRes.value.set(pipeline.compRT.width, pipeline.compRT.height);
     const su = pipeline.skyMat.uniforms;
     u.uPulseOrigin.value.copy(su.uPulseOrigin.value); u.uPulseRadius.value = su.uPulseRadius.value; u.uPulseStrength.value = su.uPulseStrength.value;
     // Cull to the view and sort into the levels of detail.

@@ -1,4 +1,4 @@
-// GLSL mirror of Weather.cloud() and Weather.pressure(). Keep in lockstep with weather.js.
+// GLSL mirror of Weather.fieldCloud() and Weather.pressure(). Keep in lockstep with weather.js.
 
 import { WX_TILE, MAX_STORMS } from './weather.js';
 
@@ -49,6 +49,9 @@ float wxStormNear(vec2 xz) {
 }
 
 float wxCloud(vec3 p, bool full) {
+#ifdef WX_NO_CLOUDS
+  return 0.0;   // (the clouds are painted cards now: render/cloudView.js)
+#endif
   float y = p.y;
   if (y < uWxLo || y > uWxHi) return 0.0;
   float press = wxPressure(p.xz);

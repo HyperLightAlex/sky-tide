@@ -21,7 +21,14 @@ brushwork) and, for each 1B, its sheet 1.
 
 ## Status
 
-None made yet.
+None made yet. In the meantime the game uses Zenith GP's Meridian (golden hour) and Helios
+(high sun) skies, cloud cards and the Helios cloud sea (see art/README.md, "Reused for now").
+The clouds are now painted cards with volumes you fly into (ART.md, "Clouds"), so this set
+needs, alongside the dome: **a cloud-card sheet per time of day** (six cumulus on green, 3x2,
+as Zenith's bg-*3-clouds: a tower, a wide bank, a heap, a cumulonimbus with an anvil, a double
+heap, a scattered cluster; flat bases, nothing touching the cell edges) and **a tiling cloud-sea
+square** (as Zenith's Helios cloud sea: dense painted billows from above, evenly lit, 512 px),
+which is also cut into the puffs you fly through.
 
 | Sheet | File | Notes |
 |---|---|---|

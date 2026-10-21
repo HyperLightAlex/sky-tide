@@ -8,6 +8,7 @@
 //           faint inner glow, and streaming motes near you
 
 import { SKY_GLSL } from '../sky/sky.js';
+import { UNTONE_GLSL } from './painted.js';
 
 export const FULLSCREEN_VERT = /* glsl */ `
 varying vec2 vUv;
@@ -277,106 +278,41 @@ void main() {
 // Scene (or sky) with the sky pass over it, still linear HDR.
 export const COMPOSITE_FRAG = /* glsl */ `
 ${COMMON}
-uniform sampler2D tScene, tClouds, tCloudInfo;
+${UNTONE_GLSL}
+uniform sampler2D tScene, tClouds, tPano;
 uniform mat4 uProjInv, uCamWorld;
 uniform vec2 uCloudTexel;
-uniform float uFogDist, uCloudPaint, uCloudEdge, uCloudDbg;
-uniform vec4 uCloudBands;
-uniform vec3 uCamPos;
-uniform sampler3D uNoiseB;
+uniform float uSkyPass, uPanoOn, uPanoSunU, uPanoHorizon;
 varying vec2 vUv;
-float lum(vec3 c) { return dot(c, vec3(0.2126, 0.7152, 0.0722)); }
+// The painted sky (painted.js), round the horizon and up to the zenith, the middle of its sun
+// side turned to the sun; the sun's disc drawn over it.
+vec3 paintedSky(vec3 dir) {
+  float h = dir.y;
+  float elev = asin(clamp(h, -1.0, 1.0));
+  float az = atan(dir.z, dir.x), sunAz = atan(uSunDir.z, uSunDir.x);
+  vec2 uv = vec2(uPanoSunU + (az - sunAz) / 6.2831853, uPanoHorizon + (1.0 - uPanoHorizon) * clamp(elev / 1.5707963, 0.0, 1.0));
+  if (elev < 0.0) uv.y = uPanoHorizon * clamp(1.0 + elev / 0.06, 0.02, 1.0);
+  vec2 dx = dFdx(uv), dy = dFdy(uv);
+  dx.x -= floor(dx.x + 0.5); dy.x -= floor(dy.x + 0.5);
+  vec3 c = unTone(textureGrad(tPano, vec2(fract(uv.x), uv.y), dx, dy).rgb);
+  float sd = max(dot(dir, uSunDir), 0.0);
+  c = mix(c, uSunColor * 1.4, smoothstep(0.9990, 0.9993, sd) * smoothstep(-0.0005, 0.0005, h));
+  return c;
+}
 void main() {
   vec3 rd = viewRay(vUv, uProjInv, uCamWorld);
   vec4 sc = texture2D(tScene, vUv);
-  vec3 base = skyColor(rd) * (1.0 - clamp(sc.a, 0.0, 1.0)) + sc.rgb;
-  // 3x3 tent filter over the low-res sky buffer (bilinear taps at offsets) hides ray jitter.
-  vec2 o = uCloudTexel * 0.75;
-  vec4 cl = texture2D(tClouds, vUv) * 0.36
-          + (texture2D(tClouds, vUv + vec2(o.x, o.y)) + texture2D(tClouds, vUv + vec2(-o.x, o.y))
-           + texture2D(tClouds, vUv + vec2(o.x, -o.y)) + texture2D(tClouds, vUv + vec2(-o.x, -o.y))) * 0.16;
-  vec4 inf = texture2D(tCloudInfo, vUv);
-  float cover = 1.0 - cl.a;
-  vec3 phys = cl.rgb / max(cover, 1e-3);     // the cloud's own (physically lit) colour
-  // Painted clouds: a clean silhouette where the cloud gets thick, thin wisps kept soft and
-  // faint, and inside it five values blended with a soft brush rather than a gradient.
-  // Shadows lean to the sky's blue, bottoms are darker, edges toward the sun light up.
-  float w = max(fwidth(cover) * 0.9, 0.012) + uCloudEdge;
-  float solid = smoothstep(0.3 - w, 0.3 + w, cover);
-  float a = max(solid, cover * 0.45);
-  if (cover < 0.004) { gl_FragColor = vec4(base, 1.0); return; }   // (no cloud here: most of the sky)
-  float mu = dot(rd, uSunDir);
-  // The shape of the cloud seen: its front surface rebuilt from where each ray met it (the sky
-  // pass's cloud depth, a few texels apart), so each heap has a lit side and a shadow
-  // side as a painter would give it. At the silhouette, the normal points outward.
-  vec3 camR = vec3(uCamWorld[0][0], uCamWorld[0][1], uCamWorld[0][2]);
-  vec3 camU = vec3(uCamWorld[1][0], uCamWorld[1][1], uCamWorld[1][2]);
-  vec3 nrm = vec3(0.0);
-  for (int k = 0; k < 1; k++) {
-    vec2 tx = uCloudTexel * 3.5;
-    vec2 uvL = vUv - vec2(tx.x, 0.0), uvR = vUv + vec2(tx.x, 0.0), uvD = vUv - vec2(0.0, tx.y), uvU = vUv + vec2(0.0, tx.y);
-    float dL = texture2D(tCloudInfo, uvL).x, dR = texture2D(tCloudInfo, uvR).x;
-    float dD = texture2D(tCloudInfo, uvD).x, dU = texture2D(tCloudInfo, uvU).x;
-    vec3 nk;
-    if (max(max(dL, dR), max(max(dD, dU), inf.x)) < 50000.0) {
-      vec3 pL = viewRay(uvL, uProjInv, uCamWorld) * dL, pR = viewRay(uvR, uProjInv, uCamWorld) * dR;
-      vec3 pD = viewRay(uvD, uProjInv, uCamWorld) * dD, pU = viewRay(uvU, uProjInv, uCamWorld) * dU;
-      nk = normalize(cross(pR - pL, pU - pD) + 1e-6);
-      if (dot(nk, rd) > 0.0) nk = -nk;
-    } else {
-      float cL = 1.0 - texture2D(tClouds, uvL).a, cR = 1.0 - texture2D(tClouds, uvR).a;
-      float cD = 1.0 - texture2D(tClouds, uvD).a, cU = 1.0 - texture2D(tClouds, uvU).a;
-      vec3 outw = -(camR * (cR - cL) + camU * (cU - cD));
-      nk = normalize(outw * 4.0 - rd * 0.6 + 1e-6);
-    }
-    nrm += nk;
+  vec3 sky = uPanoOn > 0.5 ? paintedSky(rd) : skyColor(rd);
+  vec3 base = sky * (1.0 - clamp(sc.a, 0.0, 1.0)) + sc.rgb;
+  if (uSkyPass > 0.5) {
+    // The ray-marched streams (the comparison view): a 3x3 tent filter over the low-res pass.
+    vec2 o = uCloudTexel * 0.75;
+    vec4 cl = texture2D(tClouds, vUv) * 0.36
+            + (texture2D(tClouds, vUv + vec2(o.x, o.y)) + texture2D(tClouds, vUv + vec2(-o.x, o.y))
+             + texture2D(tClouds, vUv + vec2(o.x, -o.y)) + texture2D(tClouds, vUv + vec2(-o.x, -o.y))) * 0.16;
+    base = base * cl.a + cl.rgb;
   }
-  nrm = normalize(nrm + 1e-6);
-  // Cauliflower: tilt the normal by a cellular noise at the surface, so the shading breaks
-  // into rounded lobes.
-  float bl = 0.5;
-  if (inf.x < 50000.0) {
-    vec3 cp = uCamPos + rd * inf.x;
-    bl = texture(uNoiseB, cp / 700.0).r * 0.6 + texture(uNoiseB, cp / 220.0 + 0.3).r * 0.3 + texture(uNoiseB, cp / 70.0 + 0.6).r * 0.1;
-    vec3 gb = vec3(texture(uNoiseB, cp / 420.0 + vec3(0.11, 0.0, 0.0)).r, texture(uNoiseB, cp / 420.0 + vec3(0.0, 0.23, 0.0)).r, texture(uNoiseB, cp / 420.0 + vec3(0.0, 0.0, 0.37)).r) - 0.5;
-    nrm = normalize(nrm + gb * 0.45);
-  }
-  vec3 key = normalize(uSunDir + vec3(0.0, 0.35, 0.0));
-  float shape = smoothstep(-0.35, 0.85, dot(nrm, key));
-  float vol = clamp(inf.z / 0.38, 0.0, 1.3);               // light reaching it through the cloud
-  float height = smoothstep(0.0, 0.65, inf.w);             // bases dark, tops bright
-  float light = (0.45 * vol + 0.55 * shape) * mix(0.6, 1.1, height) * mix(0.9, 1.25, smoothstep(0.3, 0.95, mu));
-  light += (bl - 0.5) * 0.4;
-  // Five painted values, as in the reference: dark slate in the shadow core, slate, a light
-  // blue-grey, the sunlit white and the hot white facing the sun. Shadows lean to the sky's
-  // colour; the light ones to the sun's.
-  vec3 sunN = uSunColor / max(max(uSunColor.r, uSunColor.g), max(uSunColor.b, 1e-3));
-  vec3 sunT = sunN * 1.6;
-  vec3 dk = mix(vec3(0.11, 0.13, 0.19), uZenith * 0.8, 0.3);
-  vec3 sl = mix(vec3(0.3, 0.34, 0.45), uSkyMid * 0.6, 0.3);
-  vec3 lt = mix(vec3(0.72, 0.76, 0.85), sunN * 0.8, 0.25);
-  vec3 litT = sunN * 1.45;
-  float bw2 = 0.05;
-  vec3 paint = dk;
-  paint = mix(paint, sl, smoothstep(uCloudBands.x - bw2, uCloudBands.x + bw2, light));
-  paint = mix(paint, lt, smoothstep(uCloudBands.y - bw2, uCloudBands.y + bw2, light));
-  paint = mix(paint, litT, smoothstep(uCloudBands.z - bw2, uCloudBands.z + bw2, light));
-  paint = mix(paint, sunT * 1.3, smoothstep(uCloudBands.w - bw2, uCloudBands.w + bw2, light));
-  // Silver lining: the thin rim of a cloud against the sun is the brightest thing in it.
-  float edge = smoothstep(0.4, 0.75, cover);
-  paint = mix(paint, sunT * 1.25, (1.0 - edge) * smoothstep(0.3, 0.9, mu) * solid * 0.8);
-  // Into the haze with distance.
-  float d = inf.x < 50000.0 ? inf.x : 8000.0;
-  float fog = 1.0 - exp(-d / uFogDist);
-  paint = mix(paint, skyColor(rd), fog * 0.85);
-  if (uCloudDbg > 0.5) {
-    // Bands of the light value, in false colour: red < .2 < orange < .4 < yellow < .6 < green < .8 < cyan < 1 < blue.
-    vec3 fc = light < 0.2 ? vec3(1, 0, 0) : light < 0.4 ? vec3(1, 0.5, 0) : light < 0.6 ? vec3(1, 1, 0) : light < 0.8 ? vec3(0, 1, 0) : light < 1.0 ? vec3(0, 1, 1) : vec3(0, 0, 1);
-    gl_FragColor = vec4(mix(base, fc * 0.6, solid), 1.0); return;
-  }
-  vec3 cc = mix(phys, paint, uCloudPaint);
-  float ca = mix(cover, a, uCloudPaint);
-  gl_FragColor = vec4(base * (1.0 - ca) + cc * ca, 1.0);
+  gl_FragColor = vec4(base, 1.0);
 }
 `;
 
@@ -411,7 +347,8 @@ void main() {
 
 export const FINAL_FRAG = /* glsl */ `
 uniform sampler2D tComp;
-uniform float uExposure;
+uniform float uExposure, uMist;
+uniform vec3 uMistColor;
 varying vec2 vUv;
 float ign(vec2 p) { return fract(52.9829189 * fract(dot(p, vec2(0.06711056, 0.00583715)))); }
 vec3 aces(vec3 x) {
@@ -420,6 +357,8 @@ vec3 aces(vec3 x) {
 }
 void main() {
   vec3 c = texture2D(tComp, vUv).rgb;
+  // Inside a cloud the light goes to its own colour (render/cloudView.js).
+  c = mix(c, uMistColor, uMist);
   c = aces(c * uExposure);
   c = pow(c, vec3(1.0 / 2.2));
   c += (ign(gl_FragCoord.xy) - 0.5) / 255.0;

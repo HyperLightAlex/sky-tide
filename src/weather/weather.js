@@ -13,6 +13,7 @@
 
 import { sampleVolume, mulberry32 } from '../sky/noise.js';
 import { TAU, DEG, frac, sst, cellHash3, lo16, hi16 } from '../sky/common.js';
+import { CloudField } from './cloudField.js';
 
 export const WX_TILE = { pressure: 16000, cumulus: 2600, stratus: 5200, detail: 420, turb: 260, storm: 3200 };
 export const MAX_STORMS = 6;
@@ -43,6 +44,7 @@ export class Weather {
       uWxDetailOff: new Float32Array(3), uWxDetail: 0.4,
       uWxLo: 0, uWxHi: 2000,
     };
+    this.field = new CloudField(this);   // the clouds as painted heaps you can fly into
     this.update(0, { x: 0, z: 0 });
   }
 
@@ -228,6 +230,7 @@ export class Weather {
 
     S.uWxLo = Math.min(S.uWxCuBase, S.uWxStAlt - S.uWxStThick, alive.length ? S.uWxStormBase : 1e9) - 10;
     S.uWxHi = Math.max(S.uWxCuTop, S.uWxStAlt + S.uWxStThick, alive.length ? S.uWxStormTop : -1e9) + 10;
+    this.field.update(t, focus);
   }
 
   // Large-scale pressure pattern in [0, 1]. Shared with trapar (regional modulation).
@@ -249,8 +252,15 @@ export class Weather {
     return c;
   }
 
-  // Water-cloud density (rendering scale; not ridable).
-  cloud(x, y, z, full = true) {
+  // Water-cloud density (not ridable): inside the painted clouds' volumes (cloudField.js).
+  // This is what shakes you and what the HUD reports.
+  cloud(x, y, z) {
+    return this.field.density(x, y, z);
+  }
+
+  // The old noise-field clouds (the GLSL wxCloud mirrors this), kept for the ray-marched
+  // comparison view only.
+  fieldCloud(x, y, z, full = true) {
     const S = this.S;
     if (y < S.uWxLo || y > S.uWxHi) return 0;
     const press = this.pressure(x, z);
@@ -295,7 +305,7 @@ export class Weather {
   // Turbulent acceleration (m/s²) inside clouds and near storms. CPU only.
   turbulence(x, y, z, t, out) {
     const P = this.P;
-    const k = P.turbulence * (Math.min(1.5, this.cloud(x, y, z, false)) + 1.5 * Math.min(2, this.stormNear(x, z)));
+    const k = P.turbulence * (Math.min(1.5, this.cloud(x, y, z)) + 1.5 * Math.min(2, this.stormNear(x, z)));
     if (k <= 0.001) { out.x = out.y = out.z = 0; return out; }
     const b = this._b, T = WX_TILE.turb, sv = this.sv.turb, s = t * 0.35;
     sampleVolume(this.B, x / T + sv[0] + s, y / T, z / T, b); out.x = (b[0] - 0.5) * 2 * k;

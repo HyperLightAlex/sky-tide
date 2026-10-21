@@ -16,6 +16,8 @@ import { IslandsView } from './render/islandsView.js';
 import { StreamMesh } from './render/streamMesh.js';
 import { setCelLight, setOutlineSize } from './render/cel.js';
 import { WakeView } from './render/wakeView.js';
+import { CloudView } from './render/cloudView.js';
+import { loadPainted } from './render/painted.js';
 import { TrailView } from './render/trailView.js';
 import { RouteGuide } from './world/guide.js';
 import { Hud } from './debug/hud.js';
@@ -47,6 +49,8 @@ async function boot() {
     braidWorker.postMessage({ id: 1, P: plainParams(P), focus: { x: 0, z: 0, rr: BR.QUICK, region: BR.QUICK_REGION }, sig: snapshotSig(P) });
   } catch (e) { console.warn('Braid worker unavailable, building snapshots in place.', e); braidWorker = null; }
 
+  // The painted skies and clouds load alongside the sky's generation.
+  const paintedLoad = loadPainted().catch((e) => { console.warn('Painted assets did not load:', e.message); return null; });
   const bank = await generateNoiseBank((f) => {
     $('loading-fill').style.width = `${(f * 100).toFixed(0)}%`;
   }, { workerUrl: new URL('./sky/noiseWorker.js', import.meta.url) });
@@ -76,6 +80,7 @@ async function boot() {
   const fx = new THREE.Scene();
   const overlay = new THREE.Scene();
   const streamScene = new THREE.Scene();   // the translucent streams, drawn after the clouds
+  const backScene = new THREE.Scene();     // the painted clouds and cloud sea, after the sky
   const hemi = new THREE.HemisphereLight(0x9fc4ff, 0x10142a, 1.4);
   const sun = new THREE.DirectionalLight(0xffe2c4, 2.6);
   scene.add(hemi, sun, sun.target);
@@ -96,6 +101,9 @@ async function boot() {
   const guide = new RouteGuide(world.trapar.braids);
   const trail = new TrailView(fx);
   const wake = new WakeView(fx);   // the trapar wave and spray a board throws up
+  const clouds = new CloudView(backScene, fx, pipeline.common, pipeline.exposure);
+  const painted = await paintedLoad;
+  if (painted) { pipeline.setPainted(painted); clouds.init(painted); }
   const motes = new Motes(fx, pipeline.skyUniforms, pipeline.look);
   const cam = new ChaseCam(camera);
   const input = new Input(window);
@@ -231,7 +239,7 @@ async function boot() {
   onResize();
 
   // Exposed for debugging from the browser console.
-  window.sandbox = { world, rider, P, input, camera, pipeline, panel, spawnStorm, newRoute, toIsland, islandsView, streamMesh, guide, trail, wake, scriptInput: null, camOverride: null, get skyTime() { return skyTime; }, get route() { return route; } };
+  window.sandbox = { world, rider, P, input, camera, pipeline, panel, spawnStorm, newRoute, toIsland, islandsView, streamMesh, guide, trail, wake, clouds, scriptInput: null, camOverride: null, get skyTime() { return skyTime; }, get route() { return route; } };
   const camDir = new THREE.Vector3();
 
   let acc = 0, last = performance.now(), frameEma = 16, gpuEma = 8, qualityT = 0, boostRumbleT = 0;
@@ -368,7 +376,8 @@ async function boot() {
     pipeline.setStreamMesh(!!P.streamMesh);
     streamMesh.update(camera, world.trapar.braids, P, rider.dbg.thr, pipeline, rider.pos, rider.mode === 'board' ? rider.up : null);
     gpuTimer.begin();
-    pipeline.render(camera, scene, fx, overlay, P, rider.dbg.thr, streamScene);
+    clouds.update(paused ? 0 : dt * P.simSpeed, camera, world, P);
+    pipeline.render(camera, scene, fx, overlay, P, rider.dbg.thr, streamScene, backScene, { amount: clouds.mist, color: clouds.mistColor });
     gpuTimer.end();
     view.renderSlice(renderer, P);
     hud.update(dt, rider, P, input, skyTime, pipeline.cloudScale, world, gpuTimer.ok ? gpuEma : null, renderScale);

@@ -18,22 +18,24 @@ distribution), what each frame shows, in production terms:
 | Seen | What it means for us |
 |---|---|
 | The board's wake is a **wave**: a sheet rising off the tail, curling beside and behind the rider | `render/wakeView.js`: a sheet laid along the board's path, taller on the outside of a carve |
-| Its **edges** are thick white glowing lines with lightning kinks | white lines on the sheet, re-drawn at 12 a second |
+| Its **edges** are thick white glowing lines with lightning kinks | white lines on the sheet, tied to the path so they stay put on the wave |
 | Its **body** is see-through sea-glass teal, clouds showing behind | translucent teal, premultiplied over the sky |
 | A **green glow** along its base: the trapar | lime body, gold-white core, brightest behind the board |
 | A **core of pastel rainbow sparkle** right behind the board | hashed dots in the young part of the base |
 | **White water dashes** fly off | streak particles (hard-edged capsules) |
 | **Takeoff**: white burst at the lip, a fan of spray, flecks trailing the board | the takeoff flash and burst |
 | **Catching** a stream: a green-gold flash, the wave building again | the catch flash |
-| **Clouds**: four or five painted values, white tops, slate to near-charcoal shadow sides, dappled brushwork, layered by depth | the painted clouds in the composite |
+| **Clouds**: painted heaps, white or gold tops, slate shadow sides, dappled brushwork, layered by depth | painted cloud cards (Zenith's Helios and Meridian sheets) with a volume you fly into (`render/cloudView.js`) |
 | Characters: thin dark lines, two flat tones, cool muted shadows | `render/cel.js` |
 | The camera paces the rider at three-quarter side-on | a later camera angle for carves (not yet) |
 
 Decisions on top of the references: the **streams stay translucent blue**, so the **green**
 is the board's trapar alone and the two always read apart; the anime look is the only look
 (no toggle); play is crisp, and the 2005-broadcast touch (4:3 safe framing, title cards, the
-eyecatch) is kept for those moments; effects are drawn at **12 drawings a second** with holds
-at 8, while the camera, steering and physics stay smooth.
+eyecatch) is kept for those moments. Drawn, frame-by-frame effects (the effect sheets, when they
+come) play at **12 drawings a second** with holds at 8; everything continuous (the wake, the
+streams, the clouds, the camera, steering and physics) moves smoothly every frame. (The wake
+was first stepped at 12 a second too: as a continuous sheet it read as flicker.)
 
 ## What each piece is
 
@@ -54,45 +56,60 @@ depth but not writing it.
   through the body (contours of the streaks). About a pixel or two at any distance, with a soft
   glow; far off they take the stream's own colour so the network does not turn to white wire.
 - **Sparkles** riding the flow, thickest at the crests and lips.
-- **Clouds in front hide them**: the sky pass writes, for each pixel, where along the ray the
-  clouds reach 90% and 50% cover; the stream estimates how much cloud lies in front of it from
-  that.
+- **Clouds in front hide them** by depth: the painted clouds write depth where they are solid.
 - The rider's view is kept clear: skin between the camera and the rider thins out.
 
 ### Board wake (`render/wakeView.js`)
 
-See the table above. Samples of the board's path (in the frame of travel, so riding switch
-does not flip it) carry the carve, taken from how fast the path turns: the outside of a carve
-throws the tall wall. A stretch of wave grows over a fifth of a second and falls away over
-two. The wave stays where it was drawn; its growth, lines, spray and flashes step at 12 a
-second. Green comes from `PALETTE.trapar` and `traparCore` (`render/pipeline.js`), shared with
-the board's glow and the green sparks.
+See the table above. Samples of the board's path (in the frame of travel, smoothed, so riding
+switch or a bumpy surface does not twist it) carry the carve, taken from how fast the path
+turns: the outside of a carve throws the tall wall. The wave peels off the rail and rises over
+the first few metres behind the board (longer the faster you go), so it always grows out of the
+board; each ride on a stream is one wave, rising from where you caught it and tapering off
+where you left. It falls away over two seconds. Everything moves every frame: the lines, kinks
+and sparkles are tied to the distance along the path and only drift slowly, so they stay on the
+wave instead of being re-drawn. Green comes from `PALETTE.trapar` and `traparCore`
+(`render/pipeline.js`), shared with the board's glow and the green sparks.
 
-### Sky (`render/shaders.js`, `SKY_COLOR_GLSL`)
+### Sky (`render/painted.js`, the composite)
 
-Painted in bands as a background artist would, never a muddy blend: deep blue overhead, a clean
-lighter blue below it, a warm glow low on the horizon toward the sun, cooler and pinker on the
-far side. Golden hour by default (sun at 16°); raise the sun and it lerps to the midday palette
-of the references. Painted sky sheets per time of day replace it later
-([art/sky-sheets](art/sky-sheets/README.md)).
+For now the skies are Zenith GP's painted ones, reused: Meridian Skyway's golden hour and Helios
+Drop's high sun, picked by the sun's height (below 28°: Meridian). Each is a panorama round the
+horizon up to the zenith, turned so its glow is round the sun, the sun's disc drawn over it.
+The haze everything fades into (`SKY_COLOR_GLSL`) takes its colours from the painting, so far
+things fade into the sky they are painted against. Painted skies of Skytide's own, per time of
+day, replace these later ([art/sky-sheets](art/sky-sheets/README.md)).
 
-### Clouds (composite, `COMPOSITE_FRAG`)
+Painted things undo the frame's tone mapping first (`unTone` in `render/painted.js`, the inverse
+of the final pass's curve), so they come out as painted, as Zenith does.
 
-The clouds are still ray marched (you fly through them), then painted over in the composite:
+### Clouds (`weather/cloudField.js`, `render/cloudView.js`)
 
-- a **clean silhouette** where a cloud gets thick, thin wisps kept soft and faint;
-- the **shape**: the front surface rebuilt from the cloud depth the sky pass writes (a few
-  texels apart, so it is smooth), tilted by a cellular noise into rounded lobes, lit by the key
-  light lifted toward overhead, and mixed with how much sunlight reaches the cloud through
-  itself (also from the sky pass) and its height in its layer (bases dark, tops bright);
-- **five values** (dark slate, slate, light blue-grey, sunlit white, hot white), soft brushed
-  edges between them, shadows leaning to the sky's colour and lights to the sun's;
-- a **silver lining** on edges against the sun, and haze with distance.
-- The cumulus field itself makes heaps: broad flat bases narrowing to rounded tops.
+Zenith's approach, made to fly through: each cloud is a **painted card** (Meridian's golden
+cumulus at golden hour, Helios's white-blue ones under a high sun, Helios's anvil for a storm)
+and a **volume**.
 
-`cloudPaint` (0..1) blends back to the lit clouds; `cloudSoft` softens the edges.
-`pipeline.compMat.uniforms.uCloudDbg = 1` shows the light value in false colour, for tuning the
-band thresholds (`uCloudBands`).
+- **Where.** Heaps sit one to a cell of the moving air (towers, heaps and banks; more where the
+  pressure is low and with `Cumulus cover`), drift with the wind at their height, and each lives
+  a slow cycle, growing in, holding and thinning out, before its cell makes another. Stratus
+  banks are squashed bank cards at the stratus height; storms are the weather's living storms.
+  All of it is a function of the seed, the time and the focus, with no three.js, so the main
+  thread, workers and tests see the same sky.
+- **The card** stands on the cloud's flat base and turns to face you about the upright, as in
+  Zenith; it leans back as you rise above it (and forward below), so from above it is never seen
+  edge on. Hazed with distance. Cards are drawn farthest first, after the sky and the solid
+  world: a depth pass writes their solid parts (so streams behind are hidden), then the painting
+  is laid over.
+- **The volume** is the card's silhouette turned round its upright (`tools/clouds/build_cards.py`
+  reads each card's outline from the atlas into `world/cloudCards.js`), so the painting and the
+  volume agree from every side. It is what shakes you (turbulence) and what the HUD reports.
+- **Flying in.** Within 45 m of a cloud its card thins away; inside, puffs of the painted cloud
+  sea (round windows of its billows, warmed at golden hour) sit on a lattice tied to the world
+  round you, shown where they are inside the cloud, so they stream past as you fly; and the light
+  goes toward the cloud's own colour (a mist, 40% at most, deeper in).
+- **The cloud sea**: Helios's painted sea of cloud, far below at the floor (fall into it and you
+  are gone), drifting, at two sizes blended by a slow noise so its billows never line up, warmed
+  at golden hour, hazed into the horizon.
 
 ### Characters (`render/cel.js`)
 
@@ -121,34 +138,32 @@ vignette, no grain, no blur.
 ## Order of passes
 
 1. Scene (rider, board, islands) into an HDR target with depth.
-2. Sky pass (low resolution): clouds, writing colour + cover and, in a second target, cloud
-   depth, light and height.
-3. Ink pass: the solid world lined.
-4. Composite: the sky, the painted clouds over it, the solid world.
-5. Streams (translucent, after the clouds).
-6. Effects: the wake, spray, flashes, route trail, motes.
-7. Tone map to the screen; then the overlay.
+2. Ink pass: the solid world lined.
+3. Composite: the painted sky behind the solid world.
+4. The cloud sea and the cloud cards (their depth, then their painting, farthest first).
+5. Streams (translucent, behind the solid world and the clouds by depth).
+6. Effects: the wake, spray, flashes, the puffs inside a cloud, route trail, motes.
+7. The mist (inside a cloud), tone map to the screen; then the overlay.
+
+(The low-resolution sky pass now runs only for the ray-marched streams, the comparison view.)
 
 ## Cost
 
-Per pass in software GL at 640x360 (relative only, and noisy: ms, v14 → v15): scene with the
-streams about 450 → scene 20 + streams 330; sky about 255 → 410 (the streams no longer stop
-cloud rays short); composite about 55 → 75 (the cloud paint); ink 20 (new); effects about 175
-→ 140. In all somewhere between level with v14 and half again more, depending on the view.
-
-What keeps it there: the cloud march strides out across long empty stretches far off (the
-streams no longer stop rays short, so this matters) and stops once a cloud is 92% solid (only
-its front is painted); the cloud paint is skipped where there is no
-cloud; fine streaks and sparkles on the streams are drawn close by only. On a GPU the cloud
-march still dominates, and auto quality trades resolution for it as before.
+Per pass in software GL at 640x360 (relative only, and noisy; ms, v15 → v16): the sky pass
+(the cloud ray march) about 460 → gone; clouds (cards and sea) 43; composite 97 → 58; streams
+about 380 → 360; effects about 170 → 160; scene and ink about 45 as before. In all about 1150 →
+675: the painted clouds cost a small fraction of the march they replace. On a GPU the streams
+are now the largest pass.
 
 ## Checking a change
 
 The look is judged by eye, in pictures that can be compared: `skytide-test/look-shots.mjs`
 renders the same moment from several cameras (chase, three-quarter left and right, side,
-wide, low), with `ROOT` for before/after, `ASPECT=4:3` for the screen shape, `WARM` seconds of
-riding first (with `LEAN` held) so the wake has built, and `PRE` for any setting (for example
-`window.sandbox.P.sunElevation=55` for midday).
+wide, low; and on the nearest big cloud: `cloudFar`, `cloudNear`, `cloudEdge`, `cloudIn`,
+`cloudDeep`), with `ROOT` for before/after, `ASPECT=4:3` for the screen shape, `WARM` seconds of
+riding first (with `LEAN` held) so the wake has built, `PRE` for any setting (for example
+`window.sandbox.P.sunElevation=55` for midday), and `SEQ` frames at `SEQDT` seconds apart from
+`SEQCAM` for checking motion (a continuous effect must not flicker from frame to frame).
 
 ## Next
 
@@ -156,6 +171,7 @@ riding first (with `LEAN` held) so the wake has built, and `PRE` for any setting
   procedural flashes and spray (art/fx-sheets).
 - Phase 3: compositing (glow on light: streams, wake, sun), moments (impact frames on big
   landings, the painted still, title cards, the eyecatch).
-- Phase 4: painted skies per time of day; night, with the streams glowing as aurora.
+- Phase 4: Skytide's own painted skies and clouds per time of day (in place of Zenith's);
+  night, with the streams glowing as aurora.
 - Phase 5: the rider and board designs (art/model-sheets), replacing the placeholders.
 - A three-quarter camera that swings out on carves so you see your wave.

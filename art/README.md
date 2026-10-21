@@ -11,6 +11,15 @@ the way Zenith GP made its art. Keep to the method: it is why the pieces match.
 | [model-sheets](model-sheets/README.md) | The rider and the board: original designs, four views at one scale |
 | [key-sheets](key-sheets/README.md) | Key art (the cover), the title card and the eyecatch |
 
+## Reused for now
+
+Until Skytide's own sheets are made, the game uses Zenith GP's painted Helios Drop and
+Meridian Skyway art (in `assets/painted`): both skies, both cloud-card sheets and the Helios
+cloud sea. Skytide's own sky and cloud sheets (sky-sheets) replace them; they keep the same
+layouts (a panorama with the horizon low, cloud cards 3x2 on green, a tiling cloud-sea square) so
+they drop in. After a new cloud sheet is cut, run `python3 tools/clouds/build_cards.py` (with its
+card rectangles) to rebuild the clouds' volumes from their outlines.
+
 ## The method
 
 1. **One brief, kept with the art.** The prompt goes in the folder's README before the sheet

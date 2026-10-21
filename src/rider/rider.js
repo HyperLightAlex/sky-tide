@@ -375,7 +375,7 @@ export class Rider {
     vis.dive = dive0 + ((foot && this.diving ? 1 : 0) - dive0) * damp(5, dt);
     const d = this.dbg;
     if (this.state !== 'freefall') this.weather.windAt(p.y, this.world.t, d.wind);
-    d.cloud = this.weather.cloud(p.x, p.y, p.z, false);
+    d.cloud = this.weather.cloud(p.x, p.y, p.z);
   }
 
   // --- islands and going on foot -------------------------------------------------------------

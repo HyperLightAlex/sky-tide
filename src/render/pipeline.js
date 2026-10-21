@@ -10,6 +10,7 @@ import * as THREE from 'three';
 import { makeSkyUniforms, syncSkyUniforms } from '../sky/sky.js';
 import { FULLSCREEN_VERT, SKY_PASS_FRAG, COMPOSITE_FRAG, INK_FRAG, FINAL_FRAG } from './shaders.js';
 import { BR } from '../trapar/braids.js';
+import { unToneJS } from './painted.js';
 
 export function makeNoiseTextures(bank) {
   const make = (vol) => {
@@ -69,11 +70,11 @@ export class SkyPipeline {
     this.sceneRT.depthTexture = this.depth;
     this.compRT = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, depthBuffer: true });
     this.compRT.depthTexture = this.depth;
-    // The sky pass draws the clouds (colour, and how much of what is behind shows) and, in a
-    // second target, how far along each ray they get thick (for the translucent streams).
-    this.cloudRT = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, depthBuffer: false, count: 2 });
-    for (const t of this.cloudRT.textures) t.minFilter = t.magFilter = THREE.LinearFilter;
-    this.cloudDepth = this.cloudRT.textures[1];
+    // The sky pass (low resolution) is only for the ray-marched streams now (the comparison
+    // view; the clouds are painted cards, render/cloudView.js).
+    this.cloudRT = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, depthBuffer: false });
+    this.cloudRT.texture.minFilter = this.cloudRT.texture.magFilter = THREE.LinearFilter;
+    this.exposure = { value: 1 };   // shared with everything painted (painted.js unTone)
 
     this.sunDir = new THREE.Vector3(0, 0.3, -1).normalize();
     const common = {
@@ -113,6 +114,7 @@ export class SkyPipeline {
         uPulseOrigin: { value: new THREE.Vector3() }, uPulseRadius: { value: 0 }, uPulseStrength: { value: 0 }, uPulseWidth: { value: 120 },
       },
       depthTest: false, depthWrite: false,
+      defines: { WX_NO_CLOUDS: 1 },
     });
     // The ink pass: the solid world lined (shaders.js INK_FRAG), read by the composite.
     this.inkRT = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, depthBuffer: false });
@@ -131,19 +133,17 @@ export class SkyPipeline {
       uniforms: {
         ...common,
         tScene: { value: this.inkRT.texture },
-        tClouds: { value: this.cloudRT.textures[0] },
-        tCloudInfo: { value: this.cloudRT.textures[1] },
-        uCloudTexel: { value: new THREE.Vector2(1, 1) },
-        uFogDist: { value: 7000 }, uCloudPaint: { value: 1 }, uCloudEdge: { value: 0 }, uCloudDbg: { value: 0 },
-        uCamPos: { value: new THREE.Vector3() }, uNoiseB: { value: textures.B },
-        uCloudBands: { value: new THREE.Vector4(0.3, 0.48, 0.64, 0.92) },
+        tClouds: { value: this.cloudRT.texture },
+        uCloudTexel: { value: new THREE.Vector2(1, 1) }, uSkyPass: { value: 0 },
+        tPano: { value: null }, uPanoOn: { value: 0 }, uPanoSunU: { value: 0.25 }, uPanoHorizon: { value: 0.03 },
+        uExposure: this.exposure,
       },
       depthTest: false, depthWrite: false,
     });
     this.finalMat = new THREE.ShaderMaterial({
       vertexShader: FULLSCREEN_VERT,
       fragmentShader: FINAL_FRAG,
-      uniforms: { tComp: { value: this.compRT.texture }, uExposure: { value: 1 } },
+      uniforms: { tComp: { value: this.compRT.texture }, uExposure: this.exposure, uMist: { value: 0 }, uMistColor: { value: new THREE.Color(1, 1, 1) } },
       depthTest: false, depthWrite: false,
     });
     this.quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), this.skyMat);
@@ -196,13 +196,16 @@ export class SkyPipeline {
     this._braidsUploaded = true;
   }
 
-  // Streams drawn as meshes (render/streamMesh.js): the sky pass then skips them.
+  // Streams drawn as meshes (render/streamMesh.js): the sky pass is then not needed at all.
   setStreamMesh(on) {
     if (on === this._meshOn) return;
     this._meshOn = on;
-    this.skyMat.defines = on ? { BR_DISABLE: 1 } : {};
+    this.skyMat.defines = on ? { BR_DISABLE: 1, WX_NO_CLOUDS: 1 } : { WX_NO_CLOUDS: 1 };
     this.skyMat.needsUpdate = true;
   }
+
+  // The painted assets (painted.js): the sky behind everything, by time of day.
+  setPainted(painted) { this.painted = painted; }
 
   // Trapar sense pulse: origin, current radius and strength (0 = off).
   setPulse(origin, radius, strength) {
@@ -218,14 +221,25 @@ export class SkyPipeline {
     const day = THREE.MathUtils.smoothstep(P.sunElevation, 2, 45);   // 0: golden hour, 1: midday
     const c = this.common;
     c.uSunColor.value.copy(PALETTE.sun).lerp(new THREE.Color(1.0, 0.95, 0.88), day * 0.6).multiplyScalar(2.7 * (0.25 + 0.75 * THREE.MathUtils.smoothstep(P.sunElevation, -5, 8)));
-    c.uZenith.value.copy(PALETTE.zenith).lerp(new THREE.Color(0.16, 0.36, 0.78), day * 0.6);
-    c.uHorizon.value.copy(PALETTE.horizon).lerp(new THREE.Color(0.72, 0.8, 0.92), day * 0.7);
-    c.uSkyMid.value.copy(PALETTE.skyMid).lerp(new THREE.Color(0.25, 0.5, 0.92), day * 0.7);
-    c.uHorizonAnti.value.copy(PALETTE.horizonAnti).lerp(new THREE.Color(0.6, 0.72, 0.92), day * 0.7);
+    this.exposure.value = P.exposure;
+    const sky = this.painted && this.painted.skies[P.sunElevation < 28 ? 'meridian' : 'helios'];
+    if (sky) {
+      // The haze everything fades into takes its colours from the painted sky.
+      const set = (col, rgb) => col.setRGB(unToneJS(rgb[0], P.exposure), unToneJS(rgb[1], P.exposure), unToneJS(rgb[2], P.exposure));
+      set(c.uZenith.value, sky.colors.zenith); set(c.uSkyMid.value, sky.colors.mid);
+      set(c.uHorizon.value, sky.colors.horizon); set(c.uHorizonAnti.value, sky.colors.horizonAnti);
+      const cu = this.compMat.uniforms;
+      cu.tPano.value = sky.tex; cu.uPanoOn.value = 1; cu.uPanoSunU.value = sky.sunU; cu.uPanoHorizon.value = sky.horizonV;
+    } else {
+      c.uZenith.value.copy(PALETTE.zenith).lerp(new THREE.Color(0.16, 0.36, 0.78), day * 0.6);
+      c.uHorizon.value.copy(PALETTE.horizon).lerp(new THREE.Color(0.72, 0.8, 0.92), day * 0.7);
+      c.uSkyMid.value.copy(PALETTE.skyMid).lerp(new THREE.Color(0.25, 0.5, 0.92), day * 0.7);
+      c.uHorizonAnti.value.copy(PALETTE.horizonAnti).lerp(new THREE.Color(0.6, 0.72, 0.92), day * 0.7);
+    }
     c.uAbyss.value.copy(PALETTE.abyss);
   }
 
-  render(camera, worldScene, fxScene, overlayScene, P, rideThr, streamScene = null) {
+  render(camera, worldScene, fxScene, overlayScene, P, rideThr, streamScene = null, backScene = null, mist = null) {
     const r = this.renderer;
     const c = this.common;
     camera.updateMatrixWorld();
@@ -242,14 +256,17 @@ export class SkyPipeline {
     su.uCamPos.value.copy(camera.position);
     su.uSteps.value = Math.round(P.steps);
     su.uExtinction.value = P.extinction;
-    su.uMinT.value = P.cloudPaint > 0.5 ? 0.08 : 0.015;
-    su.uStepK.value.set(0.04, 1.5);   // (coarser steps speckle the painted silhouettes)
+    su.uMinT.value = 0.015;
+    su.uStepK.value.set(0.04, 1.5);
     su.uFogDist.value = P.fogDistance;
-    const cu = this.compMat.uniforms;
-    cu.uFogDist.value = P.fogDistance; cu.uCamPos.value.copy(camera.position);
+    const skyPass = !this._meshOn;
+    this.compMat.uniforms.uSkyPass.value = skyPass ? 1 : 0;
     const iu = this.inkMat.uniforms;
     iu.uNear.value = camera.near; iu.uFar.value = camera.far; iu.uInk.value = P.ink;
-    iu.uTexel.value.set(1 / this.sceneRT.width, 1 / this.sceneRT.height); cu.uCloudPaint.value = P.cloudPaint; cu.uCloudEdge.value = P.cloudSoft;
+    iu.uTexel.value.set(1 / this.sceneRT.width, 1 / this.sceneRT.height);
+    const fu = this.finalMat.uniforms;
+    fu.uMist.value = mist ? mist.amount : 0;
+    if (mist) fu.uMistColor.value.setRGB(unToneJS(mist.color.r, P.exposure), unToneJS(mist.color.g, P.exposure), unToneJS(mist.color.b, P.exposure));
     su.uRideThr.value = rideThr;
     su.uBaseThr.value = P.rideThreshold;
     su.uSkinOpacity.value = P.skinOpacity;
@@ -261,7 +278,6 @@ export class SkyPipeline {
     su.uContours.value = P.contours;
     su.uContourStep.value = P.contourStep;
     su.uThin.value = P.thinTrapar;
-    this.finalMat.uniforms.uExposure.value = P.exposure;
 
     // 1. Scene.
     r.setRenderTarget(this.sceneRT);
@@ -269,10 +285,12 @@ export class SkyPipeline {
     r.clear(true, true, false);
     r.render(worldScene, camera);
 
-    // 2. Sky pass.
-    this.quad.material = this.skyMat;
-    r.setRenderTarget(this.cloudRT);
-    r.render(this.quadScene, this.quadCam);
+    // 2. Sky pass (only for the ray-marched streams).
+    if (skyPass) {
+      this.quad.material = this.skyMat;
+      r.setRenderTarget(this.cloudRT);
+      r.render(this.quadScene, this.quadCam);
+    }
 
     // 3-4. Composite, then effects tested against the scene depth (not cleared).
     const autoClear = r.autoClear;
@@ -283,6 +301,9 @@ export class SkyPipeline {
     this.quad.material = this.compMat;
     r.setRenderTarget(this.compRT);
     r.render(this.quadScene, this.quadCam);
+    // The painted clouds and the cloud sea (render/cloudView.js): over the sky, tested against
+    // the solid world; their solid parts write depth, so streams behind them are hidden.
+    if (backScene) r.render(backScene, camera);
     // The streams: translucent, over the sky and clouds, behind the solid world (render/streamMesh.js).
     if (streamScene) r.render(streamScene, camera);
     if (fxScene) r.render(fxScene, camera);
