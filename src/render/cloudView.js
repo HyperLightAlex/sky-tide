@@ -23,11 +23,12 @@ import { ISLAND_ART } from '../world/islandArt.js';
 // builds meshes within 7 km), fading in as the mesh goes and out into the haze.
 const FAR_IN0 = 6500, FAR_IN1 = 7300, FAR_OUT0 = 15000, FAR_OUT1 = 17000;
 
-const MAXSPRITES = 3200;        // cards and billows, drawn together
-const BILLOW_BUDGET = 2000;     // billows at most (the nearest clouds get them first)
+const MAXSPRITES = 4600;        // cards and billows, drawn together
+const BILLOW_BUDGET = 3000;     // billows at most (the clouds biggest in the view get them first; the rest ease back to cards)
 // A cloud is its painted card while it is small in the view; from SPREAD_IN (its size over its
 // distance) its billows spread out of the card, and by SPREAD_FULL they are in place.
 const SPREAD_IN = 0.22, SPREAD_FULL = 0.6;
+const FIELD_EDGE = 11500;       // how far round you the cloud field keeps heaps (weather/cloudField.js RANGE)
 // The raised cloud sea: how far from you (m), how many cells across, how high its billows stand.
 const SEA_NEAR = 2600, SEA_CELLS = 200, SEA_RELIEF = 150;
 const PUFFS = 7 * 7 * 7;        // the lattice of puffs round the camera inside a cloud
@@ -40,9 +41,11 @@ const ROWS = 32;
 // lies, so a cloud of flat billows is its card; spread out (iMisc.w) it stands where it is in the
 // cloud's volume, faces you, and keeps a piece of the painting of its own (from the same height
 // of the cloud, so tops stay tops and the base stays flat), its edge the painting's own where it
-// is at the cloud's outline. As it is relit (iPuff.y) the side of the cloud away from the sun
-// goes toward lavender. Each billow is drawn at one depth (its middle's), so billows never cut
-// through one another.
+// is at the cloud's outline. As it is relit (iPuff.y) it becomes one of the painted billows of
+// sheet 4, in the light where it sits. Each billow is rounded in depth, like a ball, so where
+// billows overlap the line between them slides as you move rather than one jumping in front of
+// the other, and nothing about it switches at once: its lights, and the side-lit painting and its
+// mirror, cross-fade.
 const CARD_VERT = /* glsl */ `
 attribute vec2 aCorner;         // x 0..1 across, y 0..1 up
 attribute vec4 iPos;            // the cloud's base centre, its width
@@ -50,13 +53,14 @@ attribute vec4 iRect;           // its card in the atlas
 attribute vec4 iMisc;           // its height, alpha, mirrored, how far its billows have spread
 attribute vec4 iOff;            // a billow: where in the cloud (m from the base centre), its size (m); size 0: the card
 attribute vec4 iPuff;           // a billow: the painting's shift off the upright at its height (m), how far it is relit, its own piece of the painting (card u, v)
-attribute vec4 iBillA, iBillB;  // a billow: the two painted billows (sheet 4) it shows, in two lights
-attribute vec4 iBill;           // ... how far from the first to the second, each mirrored, their width over height (0: no billow sheet)
+attribute vec4 iBillA, iBillB, iBillC;  // a billow: the painted billows (sheet 4) it shows: lit from the side, the same mirrored, and lit from above or in shade
+attribute vec4 iBill;           // ... how much of each, and their width over height (0: no billow sheet)
+attribute vec4 iBillM;          // ... each mirrored
 uniform vec3 uSunDir;
-varying vec2 vUv, vCard, vC, vWin, vBillA, vBillB;
-varying float vA, vPuff, vLit, vRelit, vBaseY, vBillK, vHasBill;
+varying vec2 vUv, vCard, vC, vWin, vBillA, vBillB, vBillC;
+varying vec3 vBillW, vViewC;
+varying float vA, vPuff, vLit, vRelit, vBaseY, vHasBill, vRad;
 varying vec3 vWorld;
-float vCenterZ;
 void frameFor(vec3 at, out vec3 R, out vec3 U) {
   // facing the camera about the upright, leaning back as it rises above (forward below), so
   // the painting is never seen edge on
@@ -78,7 +82,7 @@ void main() {
     pos = base + R * (aCorner.x - 0.5) * W + U * aCorner.y * H;
     card = aCorner;
     vPuff = 0.0; vC = vec2(0.0); vWin = vec2(0.0); vLit = 1.0; vRelit = 0.0;
-    vBillA = vBillB = vec2(0.0); vBillK = 0.0; vHasBill = 0.0;
+    vBillA = vBillB = vBillC = vec2(0.0); vBillW = vec3(0.0); vHasBill = 0.0; vRad = -1.0; vViewC = vec3(0.0);
   } else {
     float sz = iOff.w, sp = iMisc.w;
     float across = dot(iOff.xyz, R) + (mir ? -iPuff.x : iPuff.x);
@@ -91,17 +95,18 @@ void main() {
     float asp = iBill.w;
     vec2 dims = mix(vec2(sz), vec2(sz, sz / max(asp, 0.2)), asp > 0.0 ? iPuff.y : 0.0);
     pos = c + R2 * (aCorner.x - 0.5) * dims.x + U2 * (aCorner.y - 0.5) * dims.y;
-    vBillA = iBillA.xy + vec2(iBill.y > 0.5 ? 1.0 - aCorner.x : aCorner.x, aCorner.y) * iBillA.zw;
-    vBillB = iBillB.xy + vec2(iBill.z > 0.5 ? 1.0 - aCorner.x : aCorner.x, aCorner.y) * iBillB.zw;
-    vBillK = iBill.x; vHasBill = asp > 0.0 ? 1.0 : 0.0;
+    vBillA = iBillA.xy + vec2(iBillM.x > 0.5 ? 1.0 - aCorner.x : aCorner.x, aCorner.y) * iBillA.zw;
+    vBillB = iBillB.xy + vec2(iBillM.y > 0.5 ? 1.0 - aCorner.x : aCorner.x, aCorner.y) * iBillB.zw;
+    vBillC = iBillC.xy + vec2(iBillM.z > 0.5 ? 1.0 - aCorner.x : aCorner.x, aCorner.y) * iBillC.zw;
+    vBillW = iBill.xyz; vHasBill = asp > 0.0 ? 1.0 : 0.0;
+    // rounded in depth (toward you by up to about half its size at its middle)
+    vViewC = (viewMatrix * vec4(c, 1.0)).xyz; vRad = 0.45 * min(dims.x, dims.y);
     // the piece of the painting it shows: where it lies on the card, sliding to its own as it spreads
     vec2 at = mix(vec2(across / W + 0.5, iOff.y / H), vec2(mir ? 1.0 - iPuff.z : iPuff.z, iPuff.w), sp);
     card = at + (aCorner - 0.5) * vec2(sz / W, sz / H);
     vPuff = 1.0; vC = aCorner - 0.5;
     vWin = c.xz;
-    // (all of it at its middle's depth)
-    vec4 cc = projectionMatrix * viewMatrix * vec4(c, 1.0);
-    vBaseY = base.y; vCenterZ = cc.z / cc.w;
+    vBaseY = base.y;
     vec3 n = normalize(vec3(iOff.x / (0.5 * W), (iOff.y / H - 0.5) * 2.0, iOff.z / (0.5 * W)));
     vLit = dot(n, normalize(uSunDir + vec3(0.0, 0.6, 0.0)));
     vRelit = iPuff.y;
@@ -111,19 +116,25 @@ void main() {
   vA = iMisc.y; vBaseY = base.y;
   vWorld = pos;
   gl_Position = projectionMatrix * viewMatrix * vec4(pos, 1.0);
-  if (vPuff > 0.5) gl_Position.z = clamp(vCenterZ, -1.0, 1.0) * gl_Position.w;
 }
 `;
 
 const CARD_FRAG = /* glsl */ `
 uniform sampler2D tAtlas;
 uniform float uFogDist, uDepthPass;
-varying vec2 vUv, vCard, vC, vWin, vBillA, vBillB;
-varying float vA, vPuff, vLit, vRelit, vBaseY, vBillK, vHasBill;
+uniform vec2 uProjZ;            // the projection's depth terms
+varying vec2 vUv, vCard, vC, vWin, vBillA, vBillB, vBillC;
+varying vec3 vBillW, vViewC;
+varying float vA, vPuff, vLit, vRelit, vBaseY, vHasBill, vRad;
 varying vec3 vWorld;
 ${SKY_COLOR_GLSL}
 ${UNTONE_GLSL}
 void main() {
+  // A billow's depth: a ball's front, not its flat card.
+  if (vRad > 0.0) {
+    float zf = vViewC.z + vRad * sqrt(max(0.0, 1.0 - dot(vC, vC) * 4.0));
+    gl_FragDepth = clamp(((uProjZ.x * zf + uProjZ.y) / -zf) * 0.5 + 0.5, 0.0, 1.0);
+  } else gl_FragDepth = gl_FragCoord.z;
   vec4 t = texture2D(tAtlas, vUv);
   float a0;
   vec3 col;
@@ -138,9 +149,9 @@ void main() {
     float pa = m * t.a * inCard;
     if (vHasBill > 0.5) {
       // becoming a painted billow (its own outline), in the light where it sits
-      vec4 A = texture2D(tAtlas, vBillA), B = texture2D(tAtlas, vBillB);
-      float ba = mix(A.a, B.a, vBillK);
-      vec3 bp = mix(A.rgb * A.a, B.rgb * B.a, vBillK);
+      vec4 A = texture2D(tAtlas, vBillA), B = texture2D(tAtlas, vBillB), C = texture2D(tAtlas, vBillC);
+      float ba = A.a * vBillW.x + B.a * vBillW.y + C.a * vBillW.z;
+      vec3 bp = A.rgb * A.a * vBillW.x + B.rgb * B.a * vBillW.y + C.rgb * C.a * vBillW.z;
       a0 = mix(pa, ba, vRelit);
       col = mix(t.rgb * pa, bp, vRelit) / max(a0, 1e-3);
     } else {
@@ -364,13 +375,13 @@ export class CloudView {
     const cg = quad(true);
     const mk = (a, n) => new THREE.InstancedBufferAttribute(a, n).setUsage(THREE.DynamicDrawUsage);
     this.cAttr = {};
-    for (const k of ['iPos', 'iRect', 'iMisc', 'iOff', 'iPuff', 'iBillA', 'iBillB', 'iBill']) {
+    for (const k of ['iPos', 'iRect', 'iMisc', 'iOff', 'iPuff', 'iBillA', 'iBillB', 'iBillC', 'iBill', 'iBillM']) {
       this.cAttr[k] = mk(new Float32Array(MAXSPRITES * 4), 4);
       cg.setAttribute(k, this.cAttr[k]);
     }
     cg.instanceCount = 0;
     this.cardGeo = cg;
-    const cardU = () => U({ tAtlas: { value: painted.atlas }, uFogDist: { value: 7000 }, uDepthPass: { value: 0 } });
+    const cardU = () => U({ tAtlas: { value: painted.atlas }, uFogDist: { value: 7000 }, uDepthPass: { value: 0 }, uProjZ: { value: new THREE.Vector2() } });
     this.cardDepthMat = new THREE.ShaderMaterial({ vertexShader: CARD_VERT, fragmentShader: CARD_FRAG, uniforms: cardU(), colorWrite: false, depthWrite: true, depthTest: true, side: THREE.DoubleSide });
     this.cardDepthMat.uniforms.uDepthPass.value = 1;
     this.cardMat = new THREE.ShaderMaterial({ vertexShader: CARD_VERT, fragmentShader: CARD_FRAG, uniforms: cardU(), ...premult, side: THREE.DoubleSide });
@@ -420,6 +431,8 @@ export class CloudView {
     this.relief.visible = raised;
     this.seaMat.uniforms.uHoleR.value = raised ? SEA_NEAR * 0.95 : 0;
     this.cardMat.uniforms.uFogDist.value = this.cardDepthMat.uniforms.uFogDist.value = P.fogDistance;
+    const pe = camera.projectionMatrix.elements;
+    this.cardMat.uniforms.uProjZ.value.set(pe[10], pe[14]); this.cardDepthMat.uniforms.uProjZ.value.set(pe[10], pe[14]);
 
     // The clouds, as cards or billows (the nearest, biggest in the view, first), and the far
     // islands' cards, all drawn farthest first.
@@ -438,17 +451,19 @@ export class CloudView {
       const c = cands[nc] || (cands[nc] = {});
       nc++;
       Object.assign(c, s);
+      // (clouds come and go at the edge of the field kept round you: fading, not appearing)
+      if (!s.c.storm) c.alpha *= 1 - THREE.MathUtils.smoothstep(Math.hypot(dx, dz), FIELD_EDGE - 2200, FIELD_EDGE - 300);
       c.d2 = d2;
       c.sd = sd;
       c.m = P.cloudBillows === false ? 0 : THREE.MathUtils.smoothstep(Math.max(s.W, s.H) / Math.max(1, Math.sqrt(d2)), SPREAD_IN, SPREAD_FULL);
     });
     // (billows for the clouds biggest in the view, up to the budget; the rest stay cards)
     const byM = cands.slice(0, nc).filter((c) => c.m > 0).sort((a, b) => b.m - a.m);
-    let budget = BILLOW_BUDGET;
+    // (past three quarters of the budget, clouds ease back toward their cards rather than drop)
+    let used = 0;
     for (const c of byM) {
-      const B = this._billowsOf(c);
-      if (B.length > budget) { c.m = 0; continue; }
-      budget -= B.length;
+      used += this._billowsOf(c).length;
+      c.m *= 1 - THREE.MathUtils.smoothstep(used, BILLOW_BUDGET * 0.75, BILLOW_BUDGET);
     }
     for (let k = 0; k < nc; k++) {
       const s = cands[k];
@@ -466,7 +481,7 @@ export class CloudView {
     list.sort((a, b) => b.d2 - a.d2);
     const n = Math.min(MAXSPRITES, list.length);
     const A = this.cAttr, P4 = A.iPos.array, R4 = A.iRect.array, M4 = A.iMisc.array, O4 = A.iOff.array, U4 = A.iPuff.array;
-    const BA = A.iBillA.array, BB = A.iBillB.array, BK = A.iBill.array;
+    const BA = A.iBillA.array, BB = A.iBillB.array, BC = A.iBillC.array, BK = A.iBill.array, BM = A.iBillM.array;
     for (let i = 0; i < n; i++) {
       const c = list[i], o = i * 4;
       P4[o] = c.x; P4[o + 1] = c.y; P4[o + 2] = c.z; P4[o + 3] = c.W;
@@ -477,12 +492,14 @@ export class CloudView {
       if (c.bA) {
         BA[o] = c.bA[0]; BA[o + 1] = c.bA[1]; BA[o + 2] = c.bA[2]; BA[o + 3] = c.bA[3];
         BB[o] = c.bB[0]; BB[o + 1] = c.bB[1]; BB[o + 2] = c.bB[2]; BB[o + 3] = c.bB[3];
-        BK[o] = c.bk; BK[o + 1] = c.mA; BK[o + 2] = c.mB; BK[o + 3] = c.asp;
+        BC[o] = c.bC[0]; BC[o + 1] = c.bC[1]; BC[o + 2] = c.bC[2]; BC[o + 3] = c.bC[3];
+        BK[o] = c.wA; BK[o + 1] = c.wB; BK[o + 2] = c.wC; BK[o + 3] = c.asp;
+        BM[o] = 0; BM[o + 1] = 1; BM[o + 2] = c.mC;
       } else BK[o + 3] = 0;
     }
     this.cardGeo.instanceCount = n;
     for (const k in A) { A[k].clearUpdateRanges(); A[k].addUpdateRange(0, n * 4); A[k].needsUpdate = true; }
-    this.stats = { sprites: n, billows: BILLOW_BUDGET - budget };
+    this.stats = { sprites: n, billows: Math.min(used, BILLOW_BUDGET) };
 
     // Inside: puffs on a lattice tied to the world round the camera, shown where they are in
     // the nearest cloud; and the mist.
@@ -596,13 +613,18 @@ export class CloudView {
         // from the left: mirrored when the sun is to your right of it); away: in shade.
         const nx = ox / (0.5 * s.W), ny = (oy / s.H - 0.5) * 2, nz = oz / (0.5 * s.W), nl = Math.hypot(nx, ny, nz) || 1;
         const d = (nx * lx + ny * ly + nz * lz) / (nl * ll);
+        // (which side of it the sun is on, as you see it: -1 your left .. 1 your right)
         const fx = cam.x - x, fz = cam.z - z, fl = Math.hypot(fx, fz) || 1;
-        const sideMir = (lx * (fz / fl) - lz * (fx / fl)) > 0 ? 1 : 0;
-        let rowA, rowB, k;
-        if (d > 0.25) { rowA = 1; rowB = 0; k = THREE.MathUtils.smoothstep(d, 0.25, 0.55); }
-        else { rowA = 2; rowB = 1; k = THREE.MathUtils.smoothstep(d, -0.25, 0.05); }
-        e.bA = BR[rowA * 4 + b.col]; e.bB = BR[rowB * 4 + b.col]; e.bk = k;
-        e.mA = rowA === 1 ? sideMir : b.mir; e.mB = rowB === 1 ? sideMir : b.mir;
+        const sg = (lx * (fz / fl) - lz * (fx / fl)) / (Math.hypot(lx, lz) || 1);
+        const ss = THREE.MathUtils.smoothstep;
+        const wShade = 1 - ss(d, -0.25, 0.05), wSide = (1 - wShade) * (1 - ss(d, 0.25, 0.55)), wTop = (1 - wShade) - wSide;
+        const wRight = ss(sg, -0.25, 0.25);
+        // side-lit as painted (light from the left), the same mirrored (from the right), and lit
+        // from above or in shade (never both at once)
+        e.bA = BR[4 + b.col]; e.wA = wSide * (1 - wRight);
+        e.bB = BR[4 + b.col]; e.wB = wSide * wRight;
+        if (d > 0.15) { e.bC = BR[b.col]; e.wC = wTop; } else { e.bC = BR[8 + b.col]; e.wC = wShade; }
+        e.mC = b.mir;
         e.asp = BC.cards[b.col].aspect;
         // (a flat-bottomed billow stands on the cloud's base)
         if (b.col === 3) e.oy = Math.max(oy, (size / e.asp) * 0.5 * relit + oy * (1 - relit));

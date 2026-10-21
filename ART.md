@@ -114,10 +114,14 @@ is made) and a **volume**.
   flat-bottomed along the base, otherwise round, wide (more in wide clouds) or a cluster, each in
   the light where it sits against the sun (facing it: lit from above; edge on: lit from the side,
   mirrored to the sun's side; away: in shade, with its warm rim). The card stays inside as a
-  solid core, a little smaller, so the cloud is never see-through. Each billow is drawn at one
-  depth, so billows never cut through one another; one that would fill much of the view fades,
-  and close up the puffs inside take over. At most 2000 billows, the clouds biggest in the view
-  first. A set without a billow sheet (Helios) keeps its card's pieces, the side away from the
+  solid core, a little smaller, so the cloud is never see-through. **Nothing pops**: each billow
+  is rounded in depth like a ball, so where billows overlap the line between them slides as you
+  move instead of one jumping in front of the other; its light is a cross-fade of three
+  paintings (side-lit, the same mirrored, and lit from above or in shade), so neither the sun
+  crossing behind it nor a change of light switches it at once; one that would fill much of the
+  view fades, and close up the puffs inside take over. At most 3000 billows, the clouds biggest in
+  the view first; past three quarters of that, clouds ease back toward their cards. Clouds fade
+  in and out over the last 2 km of the field kept round you (11.5 km). A set without a billow sheet (Helios) keeps its card's pieces, the side away from the
   sun tinted lavender. `Clouds swell into 3D billows` (Rendering) turns it off.
 - **The volume** is the card's silhouette turned round its upright (`tools/bg/build_painted.py`
   reads each card's outline from its atlas into `world/paintedSets.js`), so the painting and the
