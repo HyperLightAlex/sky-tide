@@ -20,12 +20,15 @@ const UP = new THREE.Vector3(0, 1, 0);
 const V = () => new THREE.Vector3();
 const Q = () => new THREE.Quaternion();
 
-/** Load the four models (resolves to null if any is missing: the placeholder stays). */
+/** Load the four models (resolves to null if any is missing: the placeholder stays). Each is
+ *  read as glTF binary, or else as glTF with its data inside (<name>.gltf.json, made by
+ *  tools/models/glb_to_json.py for hosts that do not serve .glb files). */
 export async function loadRiderModels() {
   const loader = new GLTFLoader();
+  const load = (file) => loader.loadAsync(new URL(`../../assets/models/${file}.glb`, import.meta.url).href)
+    .catch(() => loader.loadAsync(new URL(`../../assets/models/${file}.gltf.json`, import.meta.url).href));
   try {
-    const entries = await Promise.all(Object.entries(FILES).map(async ([name, file]) =>
-      [name, await loader.loadAsync(new URL(`../../assets/models/${file}.glb`, import.meta.url).href)]));
+    const entries = await Promise.all(Object.entries(FILES).map(async ([name, file]) => [name, await load(file)]));
     return Object.fromEntries(entries);
   } catch (e) {
     console.warn('rider models not loaded; keeping the placeholder', e);

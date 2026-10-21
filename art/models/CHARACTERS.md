@@ -88,6 +88,9 @@ arms by two-bone reaching (knees forward, elbows down and back), the feet in the
 holds while riding (`FootHold_Front` for the left foot), the hips lowered if the feet could
 not reach, the hips and shoulders turned toward the nose, the shoulders lifting as the arms
 rise. The board's trapar paint is drawn again in the effects pass to glow with the ride.
+Each model is read as `.glb`, or else as `<name>.gltf.json` (glTF with its data inside, made by
+`tools/models/glb_to_json.py`) for hosts that do not serve `.glb`, as the published sandbox.
+Pictures from the game: `docs/progress/sky-tide-rig.png`.
 
 ## Checking
 
