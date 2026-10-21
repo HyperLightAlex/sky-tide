@@ -76,6 +76,8 @@ tools/bg/build_painted.py builds the painted sets from art/sky-sheets (Zenith GP
 tools/bg/build_islands.py builds the island art from art/island-sheets (ground, rock, far islands)
 src/world/islandArt.js    the island art: ground and rock sheets, far-island cards (generated)
 assets/painted/           painted sets: golden/ (Skytide's own) and Zenith GP's Helios and Meridian (for now); islands/
+test/                     the look and physics checks (see test/README.md)
+docs/progress/            before-and-after pictures, one set per change
 src/render/islandsView.js island meshes near the camera, painted from the island sheets
 src/render/camera.js      chase camera; orbit camera on foot
 src/debug/hud.js          heads-up display and conditions

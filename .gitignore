@@ -1,0 +1,6 @@
+node_modules/
+test/cache/
+test/shots/
+__pycache__/
+*.pyc
+.DS_Store
