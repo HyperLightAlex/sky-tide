@@ -1,0 +1,5 @@
+[
+ {"name":"c_high","js":"const sb=window.sandbox; document.getElementById('hud').hidden=true; sb.camOverride=(c,r)=>{c.position.set(r.pos.x-900,1500,r.pos.z-900);c.up.set(0,1,0);c.lookAt(r.pos.x+700,700,r.pos.z+700);c.fov=70;c.updateProjectionMatrix();}","wait":3000},
+ {"name":"c_side","js":"const sb=window.sandbox; sb.P.cloudCover=0.1; sb.camOverride=(c,r)=>{c.position.set(r.pos.x-400,r.pos.y+150,r.pos.z-400);c.up.set(0,1,0);c.lookAt(r.pos.x+400,r.pos.y-60,r.pos.z+400);c.fov=70;c.updateProjectionMatrix();}","wait":3000},
+ {"name":"c_barrel","js":"const sb=window.sandbox; const f=window.findFeat('barrel'); window._f=f; if(f){ sb.camOverride=(c,r)=>{c.position.set(f.x - f.tx*120 + f.ux*40 - f.tz*60, f.y + f.uy*40 + 20, f.z - f.tz*120 + f.uz*40 + f.tx*60);c.up.set(0,1,0);c.lookAt(f.x, f.y + 10, f.z);c.fov=60;c.updateProjectionMatrix();}; }","wait":3000}
+]

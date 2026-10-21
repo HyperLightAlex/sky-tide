@@ -1,0 +1,5 @@
+import fs from 'fs';
+let s = fs.readFileSync('./net-fork.mjs', 'utf8');
+s = s.replace("const starts = [[0, 0], [3000, 1500], [-4000, 2500], [5000, -4000], [-6000, -6000], [8000, 3000], [1200, -7000], [-2500, 6500]];", "const starts = (process.env.STARTS).split(';').map(s => s.split(',').map(Number));");
+s = s.replace("    follow(S, I); I.brace = brace; step(S, I);", "    follow(S, I); I.brace = brace; step(S, I);\n    { const qq = world.trapar.braids.nearestAxis(r.pos.x, r.pos.y, r.pos.z, {}); (globalThis.H ||= []).push(`${(i*dt).toFixed(2)} ${r.state} f=${r.dbg.feature} lat=${qq ? qq.lat.toFixed(1)+'/'+qq.w.toFixed(0)+' c'+qq.cls : '-'} ny=${r.normal.y.toFixed(2)} k=${r.dbg.kappa.toFixed(3)} sp=${r.vel.len().toFixed(1)} need=${r.holdNeed.toFixed(1)} marg=${r.holdMargin.toFixed(1)} lean=${I.lean.toFixed(2)} y=${r.pos.y.toFixed(0)}`); if (H.length > 30) H.shift(); }\n    if (prev === 'riding' && r.state !== 'riding') { console.log('--- left by', r.leftBy); console.log(H.slice(-8).join('\\n')); }");
+fs.writeFileSync('./net-fork-run.mjs', s);

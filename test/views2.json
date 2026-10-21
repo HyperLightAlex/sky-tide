@@ -1,0 +1,5 @@
+[
+ {"name":"v_play2","js":"window.sandbox.camOverride=null; document.getElementById('hud').hidden=false; window.sandbox.scriptInput=(t,s)=>{s.lean=Math.sin(t*0.7)*0.6; s.trim=-0.6;};","wait":5000},
+ {"name":"v_debug","js":"window.sandbox.P.showSlice=true; window.sandbox.P.showArrows=true; window.dispatchEvent(new KeyboardEvent('keydown',{code:'Tab'}));","wait":2500},
+ {"name":"v_air","js":"window.sandbox.P.showSlice=false; window.sandbox.P.showArrows=false; window.dispatchEvent(new KeyboardEvent('keydown',{code:'Tab'})); const r=window.sandbox.rider; r.pos.y+=180; r.vel.y=0; r.state='freefall'; window.sandbox.scriptInput=(t,s)=>{s.lean=0; s.trim=0; s.crouch=true;};","wait":1800}
+]

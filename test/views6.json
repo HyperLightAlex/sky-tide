@@ -1,0 +1,5 @@
+[
+ {"name":"n_play","js":"window.sandbox.camOverride=null;","wait":4000},
+ {"name":"n_storm","js":"document.getElementById('hud').hidden=true; const sb=window.sandbox; const r=sb.rider; sb.world.weather.spawnStorm(r.pos.x+3500, r.pos.z+3500, sb.skyTime-100, {D:300, I:1.6}); sb.world.weather.spawnStorm(r.pos.x-2500, r.pos.z+5000, sb.skyTime-260, {D:300, I:1.6}); sb.camOverride=(c,rr)=>{c.position.set(rr.pos.x-600,820,rr.pos.z-600);c.up.set(0,1,0);c.lookAt(rr.pos.x+2500,700,rr.pos.z+2500);c.fov=75;c.updateProjectionMatrix();}","wait":4000},
+ {"name":"n_high","js":"window.sandbox.camOverride=(c,r)=>{c.position.set(r.pos.x-800,1600,r.pos.z-800);c.up.set(0,1,0);c.lookAt(r.pos.x+1200,700,r.pos.z+1200);c.fov=70;c.updateProjectionMatrix();}","wait":3000}
+]

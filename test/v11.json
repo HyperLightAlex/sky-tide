@@ -1,0 +1,1 @@
+[{"name":"q_play","js":"window.sandbox.camOverride=null;","wait":4000},{"name":"q_high","js":"document.getElementById(\"hud\").hidden=true; window.sandbox.camOverride=(c,r)=>{c.position.set(r.pos.x-700,1500,r.pos.z-700);c.up.set(0,1,0);c.lookAt(r.pos.x+900,700,r.pos.z+900);c.fov=70;c.updateProjectionMatrix();}","wait":3000}]

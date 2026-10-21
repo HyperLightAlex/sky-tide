@@ -1,0 +1,6 @@
+[
+ {"name":"r_play","js":"window.sandbox.camOverride=null;","wait":4000},
+ {"name":"r_air","js":"const sb=window.sandbox; const r=sb.rider; r.pos.y += 90; r.vel.set(r.vel.x, 4, r.vel.z); r.state='freefall';","wait":2500},
+ {"name":"r_pulse","js":"const sb=window.sandbox; sb.rider.respawn(sb.rider.pos.x, sb.rider.pos.z, 720); window.dispatchEvent(new KeyboardEvent('keydown',{code:'KeyZ'})); setTimeout(()=>window.dispatchEvent(new KeyboardEvent('keyup',{code:'KeyZ'})),50);","wait":1800},
+ {"name":"r_high","js":"document.getElementById('hud').hidden=true; window.sandbox.camOverride=(c,r)=>{c.position.set(r.pos.x-700,1500,r.pos.z-700);c.up.set(0,1,0);c.lookAt(r.pos.x+900,700,r.pos.z+900);c.fov=70;c.updateProjectionMatrix();}","wait":3000}
+]

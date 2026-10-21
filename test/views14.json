@@ -1,0 +1,8 @@
+[
+ {"name":"b_play","js":"window.sandbox.camOverride=null;","wait":4000},
+ {"name":"b_snap","js":"const sb=window.sandbox; sb.scriptInput=(t,st)=>{st.snap=1; st.lean=1;};","wait":1500},
+ {"name":"b_air","js":"const sb=window.sandbox; sb.scriptInput=null; const r=sb.rider; r.pos.y += 120; r.vel.set(r.vel.x, 2, r.vel.z); r.state='freefall';","wait":2200},
+ {"name":"b_high","js":"const sb=window.sandbox; document.getElementById('hud').hidden=true; sb.camOverride=(c,r)=>{c.position.set(r.pos.x-900,1500,r.pos.z-900);c.up.set(0,1,0);c.lookAt(r.pos.x+700,700,r.pos.z+700);c.fov=70;c.updateProjectionMatrix();}","wait":3000},
+ {"name":"b_twist","js":"const sb=window.sandbox; const f=window.findFeat('twist'); window._f=f; if(f){ sb.camOverride=(c,r)=>{c.position.set(f.x - f.tx*160 + f.rx*90, f.y + 60, f.z - f.tz*160 + f.rz*90);c.up.set(0,1,0);c.lookAt(f.x, f.y, f.z);c.fov=60;c.updateProjectionMatrix();}; }","wait":3000},
+ {"name":"b_barrel","js":"const sb=window.sandbox; const f=window.findFeat('barrel'); window._f=f; if(f){ sb.camOverride=(c,r)=>{c.position.set(f.x - f.tx*70 + f.ux*12, f.y + f.uy*12, f.z - f.tz*70 + f.uz*12);c.up.set(f.ux,f.uy,f.uz);c.lookAt(f.x + f.tx*30 + f.ux*10, f.y + f.ty*30 + f.uy*10, f.z + f.tz*30 + f.uz*10);c.fov=75;c.updateProjectionMatrix();}; }","wait":3000}
+]

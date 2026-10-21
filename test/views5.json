@@ -1,0 +1,5 @@
+[
+ {"name":"n_play","js":"window.sandbox.camOverride=null;","wait":3000},
+ {"name":"n_mid","js":"document.getElementById('hud').hidden=true; window.sandbox.camOverride=(c,r)=>{c.position.set(r.pos.x,560,r.pos.z);c.up.set(0,1,0);c.lookAt(r.pos.x+800,560,r.pos.z+500);c.fov=70;c.updateProjectionMatrix();}"},
+ {"name":"n_high","js":"window.sandbox.camOverride=(c,r)=>{c.position.set(r.pos.x,1650,r.pos.z);c.up.set(0,1,0);c.lookAt(r.pos.x+800,1000,r.pos.z+800);c.fov=70;c.updateProjectionMatrix();}"}
+]

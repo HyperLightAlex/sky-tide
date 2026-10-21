@@ -1,0 +1,17 @@
+{
+  "name": "sky-tide-tests",
+  "version": "1.0.0",
+  "description": "Look and physics checks for Sky Tide (see README.md)",
+  "scripts": {
+    "shots": "node look-shots.mjs"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "three": "0.170.0",
+    "lil-gui": "^0.20.0",
+    "playwright": "1.56.0"
+  },
+  "private": true
+}

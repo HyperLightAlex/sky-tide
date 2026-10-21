@@ -1,0 +1,4 @@
+[
+ {"name":"u_rings","js":"document.getElementById('hud').hidden=true; const sb=window.sandbox; const r=sb.rider; sb.P.stormFrequency=0; sb.P.cloudCover=0.12; sb.P.fogDistance=15000; sb.world.weather.spawnStorm(r.pos.x+3000, r.pos.z+3000, sb.skyTime-170, {D:400, I:2}); sb.camOverride=(c,rr)=>{c.position.set(rr.pos.x-1200,2400,rr.pos.z-1200);c.up.set(0,1,0);c.lookAt(rr.pos.x+2400,800,rr.pos.z+2400);c.fov=70;c.updateProjectionMatrix();}","wait":4000},
+ {"name":"u_play","js":"document.getElementById('hud').hidden=false; const sb=window.sandbox; sb.camOverride=null; sb.P.cloudCover=0.35; sb.P.fogDistance=7000; sb.rider.respawn(sb.rider.pos.x+1800, sb.rider.pos.z+1800, 720);","wait":4000}
+]

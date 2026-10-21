@@ -1,0 +1,4 @@
+[
+ {"name":"t_classic","js":"const sb=window.sandbox; sb.panel.applyStage('Classic sheets'); sb.world.update(sb.skyTime, sb.rider.pos); sb.rider.respawn(sb.rider.pos.x, sb.rider.pos.z, sb.world.trapar.refAltitude());","wait":2500},
+ {"name":"t_streams","js":"const sb=window.sandbox; sb.panel.applyStage('Streams + motion'); sb.world.update(sb.skyTime, sb.rider.pos); sb.rider.respawn(sb.rider.pos.x, sb.rider.pos.z, sb.world.trapar.refAltitude());","wait":2500}
+]

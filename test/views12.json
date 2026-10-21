@@ -1,0 +1,7 @@
+[
+ {"name":"s_play","js":"window.sandbox.camOverride=null;","wait":4000},
+ {"name":"s_air","js":"const sb=window.sandbox; const r=sb.rider; r.pos.y += 110; r.vel.set(r.vel.x, 2, r.vel.z); r.state='freefall';","wait":2200},
+ {"name":"s_boost","js":"const sb=window.sandbox; const r=sb.rider; sb.rider.respawn(r.pos.x, r.pos.z, sb.world.trapar.refAltitude()); r.pos.y += 40; r.vel.y = 3; r.state='freefall'; r.gauge=1; sb.scriptInput=(t,st)=>{st.boost=true; st.trim=0.5;};","wait":2500},
+ {"name":"s_high","js":"const sb=window.sandbox; sb.scriptInput=null; document.getElementById('hud').hidden=true; sb.camOverride=(c,r)=>{c.position.set(r.pos.x-900,1450,r.pos.z-900);c.up.set(0,1,0);c.lookAt(r.pos.x+800,650,r.pos.z+800);c.fov=70;c.updateProjectionMatrix();}","wait":3000},
+ {"name":"s_pools","js":"const sb=window.sandbox; sb.panel.applyStage('Streams + pools'); sb.world.update(sb.skyTime, sb.rider.pos);","wait":3000}
+]
