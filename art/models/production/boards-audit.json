@@ -1,0 +1,173 @@
+{
+  "skipper": {
+    "triangles": 10968,
+    "meshes": 124,
+    "bounds_blender_meters": [
+      [
+        -0.31965920329093933,
+        0.31965920329093933
+      ],
+      [
+        -0.8100000023841858,
+        0.8100000023841858
+      ],
+      [
+        -0.13650000095367432,
+        0.1336999535560608
+      ]
+    ],
+    "nonmanifold_edges": [],
+    "degenerate_faces": [],
+    "nonfinite": [],
+    "footholds": [
+      {
+        "name": "FootHold_Front",
+        "foot": "L",
+        "children": 20,
+        "footbedHeight": 0.014,
+        "origin_blender": [
+          0.0,
+          0.3199999928474426,
+          0.0
+        ],
+        "origin_gltf": [
+          0.0,
+          0.0,
+          -0.3199999928474426
+        ]
+      },
+      {
+        "name": "FootHold_Rear",
+        "foot": "R",
+        "children": 20,
+        "footbedHeight": 0.014,
+        "origin_blender": [
+          0.0,
+          -0.3199999928474426,
+          0.0
+        ],
+        "origin_gltf": [
+          0.0,
+          0.0,
+          0.3199999928474426
+        ]
+      }
+    ],
+    "trapar_surfaces": [
+      "Trapar_Skipper_Left_Tail",
+      "Trapar_Skipper_Nose",
+      "Trapar_Skipper_Reactor_Core",
+      "Trapar_Skipper_Right_Tail"
+    ],
+    "textures": 0,
+    "external_dependencies": 0,
+    "design_source": "Original mara lift board design.png and tavi lift board design.png; pose renders excluded from dimensional authority",
+    "binding_test": "Independent +28/-19 degree Z rotations rendered, then restored to neutral",
+    "coordinate_contract": "Meters, glTF Y up nose -Z, deck sole plane Y=0, boot toe +X",
+    "nominal_length_m": 1.62,
+    "nominal_body_width_m": 0.48,
+    "export_meshes": 29,
+    "blend": "art/models/production/skipper.blend",
+    "glb": "assets/models/skipper.glb",
+    "export_validation": {
+      "file": "assets/models/skipper.glb",
+      "bytes": 590804,
+      "triangles": 10968,
+      "runtime_meshes": 29,
+      "runtime_nodes": 36,
+      "minimum_triangle_area_m2": 9.428492442916588e-08,
+      "unit_normals": true,
+      "no_degenerate_triangles": true,
+      "independent_foothold_hierarchies": true,
+      "footbed_height_m": 0.014,
+      "trapar_surfaces": 4,
+      "external_dependencies": false,
+      "lights_or_cameras": false
+    }
+  },
+  "kestrel": {
+    "triangles": 9608,
+    "meshes": 131,
+    "bounds_blender_meters": [
+      [
+        -0.20000000298023224,
+        0.20000000298023224
+      ],
+      [
+        -0.9283567667007446,
+        0.9299999475479126
+      ],
+      [
+        -0.11480380594730377,
+        0.1336999535560608
+      ]
+    ],
+    "nonmanifold_edges": [],
+    "degenerate_faces": [],
+    "nonfinite": [],
+    "footholds": [
+      {
+        "name": "FootHold_Front",
+        "foot": "L",
+        "children": 20,
+        "footbedHeight": 0.014,
+        "origin_blender": [
+          0.0,
+          0.3199999928474426,
+          0.0
+        ],
+        "origin_gltf": [
+          0.0,
+          0.0,
+          -0.3199999928474426
+        ]
+      },
+      {
+        "name": "FootHold_Rear",
+        "foot": "R",
+        "children": 20,
+        "footbedHeight": 0.014,
+        "origin_blender": [
+          0.0,
+          -0.3199999928474426,
+          0.0
+        ],
+        "origin_gltf": [
+          0.0,
+          0.0,
+          0.3199999928474426
+        ]
+      }
+    ],
+    "trapar_surfaces": [
+      "Trapar_Kestrel_Center_Aperture",
+      "Trapar_Kestrel_Left_Rail",
+      "Trapar_Kestrel_Right_Rail"
+    ],
+    "textures": 0,
+    "external_dependencies": 0,
+    "design_source": "Original mara lift board design.png and tavi lift board design.png; pose renders excluded from dimensional authority",
+    "binding_test": "Independent +28/-19 degree Z rotations rendered, then restored to neutral",
+    "coordinate_contract": "Meters, glTF Y up nose -Z, deck sole plane Y=0, boot toe +X",
+    "nominal_length_m": 1.86,
+    "nominal_body_width_m": 0.4,
+    "export_meshes": 29,
+    "blend": "art/models/production/kestrel.blend",
+    "glb": "assets/models/kestrel.glb",
+    "export_validation": {
+      "file": "assets/models/kestrel.glb",
+      "bytes": 539216,
+      "triangles": 9608,
+      "runtime_meshes": 29,
+      "runtime_nodes": 36,
+      "minimum_triangle_area_m2": 1.38563736665566e-07,
+      "unit_normals": true,
+      "no_degenerate_triangles": true,
+      "independent_foothold_hierarchies": true,
+      "footbed_height_m": 0.014,
+      "trapar_surfaces": 3,
+      "external_dependencies": false,
+      "lights_or_cameras": false
+    }
+  }
+}
