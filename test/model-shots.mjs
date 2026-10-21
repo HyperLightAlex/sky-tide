@@ -4,7 +4,8 @@
 // camera's distance, in the game's own light.
 //
 //   MODEL=path/to/thing.glb  HEIGHT=1.8 (or LENGTH=1.96 for a board)  KIND=char|board
-//   VIEWS=front,quarter,side,back,top,under,play  OUT=prefix  PAINT=texture|flat|raw
+//   VIEWS=front,quarter,side,back,top,under,close,face,play  OUT=prefix  PAINT=texture|flat|raw
+//   SHAPE=1 (0: ignore a model's shaped face and hair normals, render/cel.js)
 //
 // PAINT: texture (cel shaded with its own texture, as delivered), flat (its texture's colours
 // gathered into a few flat paints, one per face: the cel look), raw (the model's own materials,
@@ -57,10 +58,11 @@ await page.evaluate(() => {
 });
 await page.waitForTimeout(3000);
 // Load the model, place it where the rider is, cel shade it, hide the placeholder.
-const info = await page.evaluate(async ({ kind, height, length, paint }) => {
+const info = await page.evaluate(async ({ kind, height, length, paint, shape }) => {
   const THREE = await import('three');
   const { GLTFLoader } = await import('https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/loaders/GLTFLoader.js');
-  const { celify, addOutline } = await import('/src/render/cel.js');
+  const { celify, addOutline, CEL } = await import('/src/render/cel.js');
+  CEL.uCelShape.value = shape;
   const s = window.sandbox;
   s.P.simSpeed = 0.0001; s.P.autoQuality = false;
   const gltf = await new GLTFLoader().loadAsync('/__model.glb');
@@ -127,7 +129,7 @@ const info = await page.evaluate(async ({ kind, height, length, paint }) => {
   for (const g of [s.view.body, s.view.boardGroup, s.view.glow]) g.traverse((o) => { if (o.material) for (const m of [].concat(o.material)) m.visible = false; });
   window._model = { holder, size: size.toArray(), center: [r.x, r.y + size.y / 2, r.z], kind };
   return { tris, size: size.toArray().map((v) => +v.toFixed(3)), scale: +k.toFixed(4) };
-}, { kind: process.env.KIND || 'char', height: +(process.env.HEIGHT || 1.8), length: +(process.env.LENGTH || 1.96), paint: process.env.PAINT || 'texture' });
+}, { kind: process.env.KIND || 'char', height: +(process.env.HEIGHT || 1.8), length: +(process.env.LENGTH || 1.96), paint: process.env.PAINT || 'texture', shape: +(process.env.SHAPE ?? 1) });
 console.log('[model] loaded', JSON.stringify(info));
 const frames = (n) => page.evaluate((n) => new Promise((r) => { let k = 0; const f = () => (++k >= n ? r() : requestAnimationFrame(f)); requestAnimationFrame(f); }), n);
 const views = (process.env.VIEWS || 'front,quarter,side,back,play').split(',');

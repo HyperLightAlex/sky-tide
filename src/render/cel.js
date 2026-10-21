@@ -7,6 +7,11 @@
 //       rim of the shadow; a third, highlight tone facing the light; a hard rim of light round
 //       the edge against the sun. Drawn with a dark contour line (addOutline).
 //   backgrounds (the islands)  the same lit tone with a gentler shadow, and no highlight.
+//   faces and hair  a model may carry shaped normals beside its own (the attribute _celn, made
+//       by tools/models/characters_prepare.py: xyz the shaped normal, w how much of it): the
+//       face lit as one smooth oval round the head, so its shadow falls as one clean shape
+//       instead of following every sculpted bump; the hair smoothed. They are blended in before
+//       any skinning, so a rig turns them with the head. uCelShape scales them (0: the model's own).
 //
 // The key light is lifted toward overhead (cel lighting is designed, not measured: a low sun
 // would leave half of everything in shade from every angle). All tones are set from shared
@@ -21,6 +26,7 @@ export const CEL = {
   uKeyLift: { value: 0.35 },       // how far the key light is lifted toward overhead
   uBounce: { value: 0.6 },         // bounced light along the far rim of the shadow
   uTerminator: { value: 0.1 },     // where the shadow starts (a little above 0: more shadow, as cels had)
+  uCelShape: { value: 1 },         // how much of a model's shaped face and hair normals to use
 };
 
 const _sky = new THREE.Color(), _violet = new THREE.Color(0.66, 0.56, 1.0);
@@ -82,29 +88,43 @@ const CEL_BODY = /* glsl */ `
 }
 `;
 
-function patch(m, char) {
+const SHAPE_HEAD = /* glsl */ `
+attribute vec4 _celn;
+uniform float uCelShape;
+`;
+const SHAPE_BODY = /* glsl */ `
+objectNormal = normalize(mix(objectNormal, _celn.xyz, clamp(_celn.w * uCelShape, 0.0, 1.0)));
+`;
+
+function patch(m, char, shape = false) {
   m.userData.cel = true;
   m.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, CEL);
     shader.fragmentShader = shader.fragmentShader
       .replace('#include <common>', '#include <common>\n' + CEL_HEAD)
       .replace('#include <opaque_fragment>', CEL_BODY + '\n#include <opaque_fragment>');
+    if (shape) {
+      shader.vertexShader = shader.vertexShader
+        .replace('#include <common>', '#include <common>\n' + SHAPE_HEAD)
+        .replace('#include <beginnormal_vertex>', '#include <beginnormal_vertex>\n' + SHAPE_BODY);
+    }
     if (char) shader.defines = { ...(shader.defines || {}), CEL_CHAR: '' };
   };
-  m.customProgramCacheKey = () => `cel${char ? '-char' : ''}`;
+  m.customProgramCacheKey = () => `cel${char ? '-char' : ''}${shape ? '-shape' : ''}`;
   m.needsUpdate = true;
   return m;
 }
 
-/** A cel material in place of a Standard (or any lit) one: same paint, flat tones. */
-export function celMaterial(src, char = false) {
+/** A cel material in place of a Standard (or any lit) one: same paint, flat tones. `shape`:
+ *  the mesh carries shaped face and hair normals (_celn). */
+export function celMaterial(src, char = false, shape = false) {
   if (src.userData && src.userData.cel) return src;
   const m = new THREE.MeshLambertMaterial({
     color: src.color ? src.color.clone() : 0xffffff, vertexColors: !!src.vertexColors, flatShading: !!src.flatShading,
     side: src.side, transparent: src.transparent, opacity: src.opacity, map: src.map || null,
   });
   if (src.emissive) m.emissive.copy(src.emissive);
-  return patch(m, char);
+  return patch(m, char, shape);
 }
 
 /** Cel-shade every lit mesh under root (Basic and shader materials are left alone). */
@@ -115,8 +135,10 @@ export function celify(root, { char = false } = {}) {
     const mats = Array.isArray(o.material) ? o.material : [o.material];
     const out = mats.map((m) => {
       if (!(m.isMeshStandardMaterial || m.isMeshLambertMaterial || m.isMeshPhongMaterial)) return m;
-      if (!done.has(m)) done.set(m, celMaterial(m, char));
-      return done.get(m);
+      const shape = !!(o.geometry && o.geometry.attributes._celn);
+      const key = shape ? m.uuid + ':shape' : m;
+      if (!done.has(key)) done.set(key, celMaterial(m, char, shape));
+      return done.get(key);
     });
     o.material = Array.isArray(o.material) ? out : out[0];
   });

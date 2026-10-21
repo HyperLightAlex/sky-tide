@@ -14,6 +14,16 @@ repo (15 to 18 MB each).
 - **Scale and orientation**: Y up; boards nose toward -Z, as the game's. Normalised to 2 units:
   characters scale by 0.90 to 1.8 m, boards by 0.98 to 1.96 m.
 
+## Since
+
+- **Boards**: rebuilt from the concept sheets in Blender (commit 42989bc; `art/models/BOARDS.md`):
+  1.62 and 1.86 m, about 10k triangles, flat cel palettes, undersides as designed, foot holds,
+  fins and glow surfaces as their own parts. Items 4 to 7 below are done for them.
+- **Characters**: the original models stay as the baseline (a rebuilt, rigged pass looked worse).
+  `tools/models/characters_prepare.py` sizes them to their sheets (Tavi 1.72 m, Mara 1.82 m),
+  trims them to about 3.4 MB and gives the face and hair shaped normals for the cel shader:
+  item 1 (`art/models/CHARACTERS.md`). Rigging (items 3 and 4) is next.
+
 ## What needs work
 
 | | Problem | Why it matters here | Fix |

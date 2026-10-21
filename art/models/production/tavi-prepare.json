@@ -1,0 +1,33 @@
+{
+ "chin_m": 1.4448,
+ "head_center_m": [
+  -0.0023,
+  1.5272,
+  -0.0206
+ ],
+ "head_radii_m": [
+  0.0985,
+  0.1478,
+  0.1339
+ ],
+ "skin_rgb": [
+  0.773,
+  0.512,
+  0.294
+ ],
+ "hair_rgb": [
+  0.259,
+  0.157,
+  0.092
+ ],
+ "face_points": 1332,
+ "hair_points": 2844,
+ "source": "art/models/source/tavi.glb",
+ "height_m": 1.72,
+ "scale": 0.8626,
+ "vertices": 61871,
+ "triangles": 99988,
+ "dropped_fragment_triangles": 12,
+ "texture_px": 2048,
+ "bytes": 3469028
+}

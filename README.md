@@ -67,13 +67,16 @@ src/render/shaders.js     sky colour, sky pass (clouds; streams when ray marched
 src/render/motes.js       trapar motes that stream with its flow
 src/render/riderView.js   rider and board, on-foot poses, green sparks, markers, route beam, overlays
 src/render/wakeView.js    the board's wake: the trapar wave, white water, takeoff and catch flashes
-src/render/cel.js         cel shading (characters and backgrounds) and the characters' contour lines
+src/render/cel.js         cel shading (characters and backgrounds, shaped face and hair normals) and contour lines
 src/render/painted.js     the painted assets (skies, cloud cards, cloud sea) and unTone
 src/render/cloudView.js   painted cloud cards, the cloud sea, puffs and mist inside a cloud
 src/weather/cloudField.js the clouds as things: heaps in the moving air, their lives and volumes
 src/world/paintedSets.js  the painted sets: skies, cloud cards (rectangles, outlines), surfaces (generated)
 tools/bg/build_painted.py builds the painted sets from art/sky-sheets (Zenith GP's cutting, cut joins)
 tools/bg/build_islands.py builds the island art from art/island-sheets (ground, rock, far islands)
+tools/models/             characters_prepare.py (Tavi, Mara: see art/models/CHARACTERS.md); the boards' builder
+assets/models/            runtime Tavi, Mara, Skipper and Kestrel (glTF)
+art/models/               concepts, sources, editable boards, audits and previews (CHARACTERS.md, BOARDS.md)
 src/world/islandArt.js    the island art: ground and rock sheets, far-island cards (generated)
 assets/painted/           painted sets: golden/ (Skytide's own) and Zenith GP's Helios and Meridian (for now); islands/
 test/                     the look and physics checks (see test/README.md)

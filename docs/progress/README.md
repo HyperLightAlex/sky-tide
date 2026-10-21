@@ -11,3 +11,5 @@ Before-and-after pictures made while building Sky Tide, one set per change, in o
 | `skytide-v19-islands.png`, `skytide-wake-v19b.png` | v19 and v20: painted islands; the wake, smaller and from the back foot |
 | `skytide-fx-breakdown.png`, `skytide-board-effects-close.png`, `skytide-board-effects-chase.png` | Every effect round the board, one at a time |
 | `skytide-v21-clouds.png` | v21: clouds that swell into G4 billows; the raised cloud sea |
+| `sky-tide-model-review.png` | The first 3D models in the game: what each needs |
+| `sky-tide-faces.png` | Tavi and Mara, the original models: the face and hair with shaped normals for the cel shading |
