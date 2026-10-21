@@ -13,9 +13,10 @@ the way Zenith GP made its art. Keep to the method: it is why the pieces match.
 
 ## Reused for now
 
-Until Skytide's own sheets are made, the game uses Zenith GP's painted Helios Drop and
-Meridian Skyway art (in `assets/painted`): both skies, both cloud-card sheets and the Helios
-cloud sea. Skytide's own sky sheets (sky-sheets) replace them, set by set, as they arrive: they
+Golden hour is Skytide's own (sky-sheets, set G). Until the midday and night sets are made, a
+high sun uses Zenith GP's painted Helios Drop art (in `assets/painted`: its sky, cloud cards and
+cloud sea) and night falls back to golden hour. Skytide's own sky sheets replace them, set by
+set, as they arrive: they
 keep Zenith's layouts (a sky half with the horizon three quarters down, cloud cards 3x2 on
 green, tiling squares 3x2), so they go through Zenith's own cutting, ported as
 `tools/bg/build_painted.py`. Put the sheets in `art/sky-sheets` and run it: it cuts and packs

@@ -13,7 +13,10 @@ shadows of their own.
 | 4 Far islands | Six island silhouettes on green, 3x2, as seen from a few kilometres off | Cards for islands beyond drawing distance |
 
 Attach to every sheet: the still of the cliff and grass (the board leaping off a grassy
-outcrop), for the era's painted grass and rock.
+outcrop), for the era's painted grass and rock, and the golden-hour cloud surfaces
+(`sky-g3-cloud.png`), so the islands are painted with the same brush as the clouds. The image
+model cannot make a square that truly repeats; the builder does that (as for the cloud
+surfaces), so a square only needs even detail with nothing that stands out.
 
 ## Status
 
@@ -31,7 +34,9 @@ Surfaces for floating islands high in the sky: grassy tops, rock undersides trai
 
 STYLE, ALL SHEETS
 - Background art from a Japanese TV anime of around 2005, painted digitally by hand: a few flat tones per form with soft, controlled brushwork and a little dry-brush texture; grass as clumps and strokes, rock as planes and cracks; no ink outlines.
-- Sheets 1 to 3 are textures for a 3D game, so: EVENLY LIT, flat front-on view, no shadows, no highlights, no sky, no horizon, no perspective; each square must tile seamlessly with itself on all four edges.
+- Sheets 1 to 3 are textures for a 3D game, so: EVENLY LIT in plain neutral daylight (not golden: the game adds the light of the hour), flat front-on view, no shadows, no highlights, no sky, no horizon, no perspective; each square must tile seamlessly with itself on all four edges.
+- Keep the detail even across each square and at one scale: about six to ten clumps, stones, boards or bands cross a square, with no single feature, bright patch or dark patch that would stand out when it repeats, and no lighter or darker corner.
+- The attached cloud-surface sheet shows the brushwork to match: small rounded dabs in a few flat values, soft controlled edges.
 - Not a photo, not a 3D render: no photographic detail, no noise, no grain.
 - Nothing but the surface: no people, animals, text, numbers, logos, signatures or watermarks.
 - Palette: grass yellow-green #8DBF5A to #5E9A45, flowers small dots of cream, pale yellow and lilac, earth warm ochre #B8925E, rock warm grey #8C8279 to blue-grey #5D6577 with sandy layers #C9B08A, moss deep green #4F7D3E, timber warm brown #8A5F3C, stone slabs pale grey #B8B2A6.

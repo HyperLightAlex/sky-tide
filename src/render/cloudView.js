@@ -5,9 +5,10 @@
 //              turned to face you (and leaning back as you rise above it, so from above it
 //              never goes edge on), hazed with distance. Drawn after the sky and the solid
 //              world; they write depth where they are solid, so streams behind them are hidden.
-//   inside     as you near a cloud its card thins away and you are among painted puffs (cut
-//              from the same painting) inside its volume, the light dimming to a mist the
-//              deeper you go.
+//   inside     as you near a cloud its card thins away and you are among painted puffs (round
+//              windows onto the cloud sea's painting) inside its volume, and the deeper you go
+//              the more the view goes to a mist: the set's painting of the inside of a cloud
+//              (pipeline.js, the final pass), or a flat colour for Zenith's sets.
 //   cloud sea  the painted sea of cloud far below, at the floor: fall that far and you are gone.
 
 import * as THREE from 'three';
@@ -81,8 +82,8 @@ void main() {
 }
 `;
 const SEA_FRAG = /* glsl */ `
-uniform sampler2D tSea;
-uniform float uTime, uFogDist, uWarm;
+uniform sampler2D tSea, tSeaBroken, tSeaShade;
+uniform float uTime, uFogDist, uWarm, uVariants;
 uniform vec3 uDeep;
 varying vec3 vWorld;
 ${SKY_COLOR_GLSL}
@@ -90,14 +91,27 @@ ${UNTONE_GLSL}
 float h21(vec2 p) { vec3 p3 = fract(vec3(p.xyx) * 0.1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }
 float vnoise(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
   return mix(mix(h21(i), h21(i + vec2(1, 0)), f.x), mix(h21(i + vec2(0, 1)), h21(i + vec2(1, 1)), f.x), f.y); }
+float fbm2(vec2 p) { return vnoise(p) * 0.65 + vnoise(p * 2.13 + 5.2) * 0.35; }
+vec3 sea2(sampler2D t, vec2 q, float n) {
+  // one painting at two sizes, the second turned, blended by a slow noise so its billows
+  // never line up into a grid
+  vec3 a = texture2D(t, q / 1100.0).rgb;
+  vec3 b = texture2D(t, mat2(0.8, -0.6, 0.6, 0.8) * q / 1500.0 + 0.41).rgb;
+  return mix(a, b, smoothstep(0.3, 0.7, n));
+}
 void main() {
-  // The painted cloud sea (Zenith's Helios), drifting, at two sizes blended by a slow noise so
-  // its billows never line up into a grid.
+  // The painted cloud sea, drifting. A set's own sheets give three paintings of it: dense,
+  // broken (the depth far below between the clumps) and shaded by a cloud above. They come and
+  // go across it in wide patches, so it reads as weather rather than one tile over and over.
   vec2 q = vWorld.xz + vec2(uTime * 3.6, uTime * 1.5);
-  vec3 a = texture2D(tSea, q / 1100.0).rgb;
-  vec3 b = texture2D(tSea, mat2(0.8, -0.6, 0.6, 0.8) * q / 1500.0 + 0.41).rgb;
   float n = vnoise(vWorld.xz * 0.0011);
-  vec3 col = mix(a, b, smoothstep(0.3, 0.7, n));
+  vec3 col = sea2(tSea, q, n);
+  if (uVariants > 0.5) {
+    float br = fbm2(q * 0.00028 + 11.0);
+    col = mix(col, sea2(tSeaBroken, q + 370.0, n), smoothstep(0.56, 0.7, br));
+    float sh = fbm2(q * 0.00042 - 4.0);
+    col = mix(col, sea2(tSeaShade, q + 820.0, n), smoothstep(0.58, 0.72, sh) * 0.9);
+  }
   col *= 0.92 + 0.14 * smoothstep(0.35, 0.65, vnoise(vWorld.xz * 0.0004 + 3.0));
   // Golden hour: the lights warm, the shadows toward lavender (the painting is midday).
   float l = dot(col, vec3(0.3, 0.55, 0.15));
@@ -129,14 +143,15 @@ void main() {
 }
 `;
 const PUFF_FRAG = /* glsl */ `
-uniform sampler2D tSea;
+uniform sampler2D tSea, tSeaShade;
 uniform float uWarm;
 varying vec2 vUv, vC;
 varying vec2 vA;
 ${UNTONE_GLSL}
 void main() {
-  // A round puff of the painted cloud sea's billows, its edge broken up by the painting.
-  vec3 t = texture2D(tSea, vUv).rgb;
+  // A round puff of the painted cloud sea's billows (lit higher up; its shaded painting low
+  // down, where a set has one), its edge broken up by the painting.
+  vec3 t = mix(texture2D(tSeaShade, vUv).rgb, texture2D(tSea, vUv).rgb, smoothstep(0.15, 0.7, vA.y));
   float l = dot(t, vec3(0.3, 0.55, 0.15));
   float r = length(vC) * 2.0;
   float m = (1.0 - smoothstep(0.45, 0.95, r + (0.62 - l) * 0.5)) * (1.0 - smoothstep(0.7, 0.97, r));
@@ -173,6 +188,7 @@ export class CloudView {
     this.backScene = backScene;
     this.veilScene = veilScene;   // (drawn after the glow is taken: puffs are not light)
     this.mist = 0; this.mistColor = new THREE.Color(0.9, 0.92, 0.98);
+    this.mistTex = null; this.mistTexShade = null; this.mistLit = 1;
     this.camSdf = 1e9;
     this._near = { d: Infinity, s: null };
   }
@@ -184,7 +200,7 @@ export class CloudView {
     // The cloud sea, a wide plane that follows the camera (its painting is tied to the world).
     this.seaMat = new THREE.ShaderMaterial({
       vertexShader: SEA_VERT, fragmentShader: SEA_FRAG,
-      uniforms: U({ tSea: { value: null }, uTime: { value: 0 }, uFogDist: { value: 7000 }, uWarm: { value: 1 }, uDeep: { value: new THREE.Color(0.1, 0.2, 0.5) } }),
+      uniforms: U({ tSea: { value: null }, tSeaBroken: { value: null }, tSeaShade: { value: null }, uVariants: { value: 0 }, uTime: { value: 0 }, uFogDist: { value: 7000 }, uWarm: { value: 1 }, uDeep: { value: new THREE.Color(0.1, 0.2, 0.5) } }),
     });
     const sg = new THREE.PlaneGeometry(80000, 80000, 1, 1);
     sg.rotateX(-Math.PI / 2);
@@ -218,7 +234,7 @@ export class CloudView {
     pg.setAttribute('iPos', this.pPosA); pg.setAttribute('iRect', this.pRectA); pg.setAttribute('iA', this.pAA);
     pg.instanceCount = 0;
     this.puffGeo = pg;
-    this.puffMat = new THREE.ShaderMaterial({ vertexShader: PUFF_VERT, fragmentShader: PUFF_FRAG, uniforms: U({ tSea: { value: null }, uWarm: { value: 1 } }), ...premult });
+    this.puffMat = new THREE.ShaderMaterial({ vertexShader: PUFF_VERT, fragmentShader: PUFF_FRAG, uniforms: U({ tSea: { value: null }, tSeaShade: { value: null }, uWarm: { value: 1 } }), ...premult });
     this.puffs = new THREE.Mesh(pg, this.puffMat);
     this.puffs.frustumCulled = false;
     this.puffs.renderOrder = 6;
@@ -232,12 +248,17 @@ export class CloudView {
     const field = world.weather.field, cam = camera.position;
     this.seaMat.uniforms.uTime.value += dt;
     this.seaMat.uniforms.uFogDist.value = P.fogDistance;
-    // The set for the light now: its cloud sea and puffs (Zenith's Meridian borrows Helios's, warmed).
+    // The set for the light now: its cloud sea and puffs (Zenith's sets: their cloud sea for both,
+    // Meridian's borrowed from Helios and warmed).
     const surf = this.painted.surfaces[field.set()] || Object.values(this.painted.surfaces)[0];
-    this.seaMat.uniforms.tSea.value = surf.cloudsea;
-    this.seaMat.uniforms.uWarm.value = surf.warm ? 1 : 0;
-    this.puffMat.uniforms.tSea.value = surf.puffs;
+    const su = this.seaMat.uniforms;
+    su.tSea.value = surf.cloudsea; su.tSeaBroken.value = surf.broken; su.tSeaShade.value = surf.shade;
+    su.uVariants.value = surf.variants ? 1 : 0;
+    su.uWarm.value = surf.warm ? 1 : 0;
+    this.puffMat.uniforms.tSea.value = surf.cloudsea;
+    this.puffMat.uniforms.tSeaShade.value = surf.shade;
     this.puffMat.uniforms.uWarm.value = surf.warm ? 1 : 0;
+    this.mistTex = surf.inside; this.mistTexShade = surf.insideShade;
     this.sea.position.set(cam.x, P.floorAltitude - 15, cam.z);
     this.sea.visible = P.cloudSea !== false;
     this.cardMat.uniforms.uFogDist.value = this.cardDepthMat.uniforms.uFogDist.value = P.fogDistance;
@@ -303,6 +324,8 @@ export class CloudView {
     for (const A of [this.pPosA, this.pRectA, this.pAA]) { A.clearUpdateRanges(); A.addUpdateRange(0, np * A.itemSize); A.needsUpdate = true; }
     // Mist: the deeper in, the more the light goes to the cloud's own colour.
     this.mist = nearS ? THREE.MathUtils.smoothstep(-nearD, 0, 80) * 0.4 * nearS.alpha : 0;
+    // (how high in the cloud you are: the mist's painting is lit above, in shade below)
+    this.mistLit = nearS ? THREE.MathUtils.smoothstep((cam.y - nearS.y) / Math.max(1, nearS.H), 0.15, 0.7) : 1;
     if (nearS) this.mistColor.setRGB(...(PAINTED_SETS[nearS.set].light === 'golden' ? [0.96, 0.84, 0.78] : PAINTED_SETS[nearS.set].light === 'night' ? [0.32, 0.38, 0.55] : [0.86, 0.9, 0.98]));
   }
 

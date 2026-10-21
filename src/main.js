@@ -380,7 +380,7 @@ async function boot() {
     streamMesh.update(camera, world.trapar.braids, P, rider.dbg.thr, pipeline, rider.pos, rider.mode === 'board' ? rider.up : null);
     gpuTimer.begin();
     clouds.update(paused ? 0 : dt * P.simSpeed, camera, world, P);
-    pipeline.render(camera, scene, fx, overlay, P, rider.dbg.thr, streamScene, backScene, { amount: clouds.mist, color: clouds.mistColor }, veilScene);
+    pipeline.render(camera, scene, fx, overlay, P, rider.dbg.thr, streamScene, backScene, { amount: clouds.mist, color: clouds.mistColor, tex: clouds.mistTex, texShade: clouds.mistTexShade, lit: clouds.mistLit }, veilScene);
     gpuTimer.end();
     view.renderSlice(renderer, P);
     hud.update(dt, rider, P, input, skyTime, pipeline.cloudScale, world, gpuTimer.ok ? gpuEma : null, renderScale);

@@ -72,8 +72,8 @@ src/render/painted.js     the painted assets (skies, cloud cards, cloud sea) and
 src/render/cloudView.js   painted cloud cards, the cloud sea, puffs and mist inside a cloud
 src/weather/cloudField.js the clouds as things: heaps in the moving air, their lives and volumes
 src/world/paintedSets.js  the painted sets: skies, cloud cards (rectangles, outlines), surfaces (generated)
-tools/bg/build_painted.py builds the painted sets from art/sky-sheets (Zenith GP's cutting)
-assets/painted/           painted skies, cloud cards and cloud sea (Zenith GP's, reused for now)
+tools/bg/build_painted.py builds the painted sets from art/sky-sheets (Zenith GP's cutting, cut joins)
+assets/painted/           painted sets: golden/ (Skytide's own) and Zenith GP's Helios and Meridian (for now)
 src/render/islandsView.js island meshes near the camera
 src/render/camera.js      chase camera; orbit camera on foot
 src/debug/hud.js          heads-up display and conditions

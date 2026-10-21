@@ -8,7 +8,7 @@
 //           faint inner glow, and streaming motes near you
 
 import { SKY_GLSL } from '../sky/sky.js';
-import { UNTONE_GLSL } from './painted.js';
+import { UNTONE_GLSL, UNTONE_FN } from './painted.js';
 
 export const FULLSCREEN_VERT = /* glsl */ `
 varying vec2 vUv;
@@ -346,11 +346,13 @@ void main() {
 `;
 
 export const FINAL_FRAG = /* glsl */ `
-uniform sampler2D tComp, tGlow, tGlowWide, tDepth;
-uniform float uExposure, uMist, uGlow, uSunGlow;
+uniform sampler2D tComp, tGlow, tGlowWide, tDepth, tMist, tMistShade;
+uniform float uExposure, uMist, uGlow, uSunGlow, uMistTex;
 uniform vec3 uMistColor, uSunColor;
 uniform vec2 uSunUv, uAspect;
+uniform vec4 uMistUv;           // offset (turns with the view), size, lit (1) or in shade (0)
 varying vec2 vUv;
+${UNTONE_FN}
 float ign(vec2 p) { return fract(52.9829189 * fract(dot(p, vec2(0.06711056, 0.00583715)))); }
 vec3 aces(vec3 x) {
   const float a = 2.51, b = 0.03, c = 2.43, d = 0.59, e = 0.14;
@@ -373,8 +375,16 @@ void main() {
     float g = (exp(-r * 22.0) * 0.55 + exp(-r * 5.0) * 0.12) * (1.0 - occ * 0.85);
     c += uSunColor * g * uSunGlow;
   }
-  // Inside a cloud the light goes to its own colour (render/cloudView.js).
-  c = mix(c, uMistColor, uMist);
+  // Inside a cloud the view goes to the cloud (render/cloudView.js): the set's painting of the
+  // inside of a cloud, lit or in shade by how high in it you are, turning with the view; or,
+  // for a set without one, the cloud's colour.
+  vec3 mc = uMistColor;
+  if (uMistTex > 0.5 && uMist > 0.0) {
+    vec2 q = (vUv - 0.5) * uAspect * uMistUv.z + uMistUv.xy;
+    vec3 p = mix(texture2D(tMistShade, q).rgb, texture2D(tMist, q).rgb, uMistUv.w);
+    mc = mix(uMistColor, unTone(p), 0.85);
+  }
+  c = mix(c, mc, uMist);
   c = aces(c * uExposure);
   c = pow(c, vec3(1.0 / 2.2));
   c += (ign(gl_FragCoord.xy) - 0.5) / 255.0;

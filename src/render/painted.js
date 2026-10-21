@@ -1,7 +1,7 @@
 // The painted assets: skies, cloud cards, the cloud sea and the puffs inside clouds, one set
 // per time of day (src/world/paintedSets.js, built from art/sky-sheets by
-// tools/bg/build_painted.py). Until Skytide's own are made, Zenith GP's Meridian (golden hour)
-// and Helios (high sun) sets stand in.
+// tools/bg/build_painted.py). Golden hour is Skytide's own; until the others are made, Zenith
+// GP's Helios stands in under a high sun (and Meridian wherever no set of ours fits).
 //
 // The frame is tone mapped on the way out (shaders.js FINAL_FRAG), which would change a
 // painting's colours (lifted mids, greyed whites). Painted things first undo it (unTone), so
@@ -12,8 +12,7 @@ import { PAINTED_SETS } from '../world/paintedSets.js';
 
 // The final pass's curve (Narkowicz's ACES fit, after the exposure, then a 2.2 gamma),
 // inverted: the HDR value that comes out of the frame as the painted colour.
-export const UNTONE_GLSL = /* glsl */ `
-uniform float uExposure;
+export const UNTONE_FN = /* glsl */ `
 vec3 unTone(vec3 s) {
   vec3 y = pow(clamp(s, 0.0, 1.0), vec3(2.2)) * 0.985;
   vec3 A = 2.43 * y - 2.51, B = 0.59 * y - 0.03, C = 0.14 * y;
@@ -21,6 +20,7 @@ vec3 unTone(vec3 s) {
   return max(x, 0.0) / max(uExposure, 1e-3);
 }
 `;
+export const UNTONE_GLSL = 'uniform float uExposure;\n' + UNTONE_FN;
 export function unToneJS(s, exposure) {
   const y = Math.pow(Math.min(1, Math.max(0, s)), 2.2) * 0.985;
   const A = 2.43 * y - 2.51, B = 0.59 * y - 0.03, C = 0.14 * y;
@@ -71,8 +71,18 @@ export async function loadPainted(sets) {
     const S = PAINTED_SETS[n];
     const t = await tex(S.sky, false);
     skies[n] = { tex: t, sunU: S.sunU, horizonV: S.horizonV, colors: skyColors(t.image, S) };
+    // The sea: dense, broken (the depth far below showing between the clumps) and in the shadow
+    // of a cloud above; the inside of a cloud, lit (higher up) and in shade (low down), for the
+    // mist deep in one. A set without all six (Zenith's) uses its cloud sea for the sea's three
+    // and has no inside paintings (its mist is a flat colour).
+    const own = (k) => (S.surfaces[k] ? tex(S.surfaces[k], true) : null);
     const sea = await tex(S.surfaces.cloudsea, true);
-    surfaces[n] = { cloudsea: sea, puffs: S.surfaces.puffs ? await tex(S.surfaces.puffs, true) : sea, warm: !!S.warm };
+    const inside = await own('puffs');
+    surfaces[n] = {
+      cloudsea: sea, broken: (await own('cloudsea-broken')) || sea, shade: (await own('cloudsea-shade')) || sea,
+      inside, insideShade: (await own('puffs-shade')) || inside,
+      variants: !!S.surfaces['cloudsea-broken'], warm: !!S.warm,
+    };
   }
   return { atlas, rects, skies, surfaces };
 }

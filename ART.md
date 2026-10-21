@@ -25,7 +25,7 @@ distribution), what each frame shows, in production terms:
 | **White water dashes** fly off | streak particles (hard-edged capsules) |
 | **Takeoff**: white burst at the lip, a fan of spray, flecks trailing the board | the takeoff flash and burst |
 | **Catching** a stream: a green-gold flash, the wave building again | the catch flash |
-| **Clouds**: painted heaps, white or gold tops, slate shadow sides, dappled brushwork, layered by depth | painted cloud cards (Zenith's Helios and Meridian sheets) with a volume you fly into (`render/cloudView.js`) |
+| **Clouds**: painted heaps, white or gold tops, slate shadow sides, dappled brushwork, layered by depth | painted cloud cards (Skytide's golden-hour sheet; Zenith's Helios under a high sun) with a volume you fly into (`render/cloudView.js`) |
 | Characters: thin dark lines, two flat tones, cool muted shadows | `render/cel.js` |
 | The camera paces the rider at three-quarter side-on | a later camera angle for carves (not yet) |
 
@@ -73,21 +73,23 @@ wave instead of being re-drawn. Green comes from `PALETTE.trapar` and `traparCor
 
 ### Sky (`render/painted.js`, the composite)
 
-For now the skies are Zenith GP's painted ones, reused: Meridian Skyway's golden hour and Helios
-Drop's high sun, picked by the sun's height (below 28°: Meridian). Each is a panorama round the
-horizon up to the zenith, turned so its glow is round the sun, the sun's disc drawn over it.
-The haze everything fades into (`SKY_COLOR_GLSL`) takes its colours from the painting, so far
-things fade into the sky they are painted against. Painted skies of Skytide's own, per time of
-day, replace these later ([art/sky-sheets](art/sky-sheets/README.md)).
+The sky is a painted set picked by the sun's height: golden hour (below 28°) is Skytide's own
+([art/sky-sheets](art/sky-sheets/README.md), set G); a high sun still borrows Zenith GP's Helios
+Drop, and night falls back to golden hour until sets M and N are made. Each sky is a panorama
+round the horizon up to the zenith, made of two painted halves (the one facing the sun and the
+one facing away), turned so its glow is round the sun, the sun's disc drawn over it. An image
+model cannot paint two halves whose clouds meet, so the builder overlaps them and cuts each join
+through the gaps between the clouds. The haze everything fades into (`SKY_COLOR_GLSL`) takes its
+colours from the painting, so far things fade into the sky they are painted against.
 
 Painted things undo the frame's tone mapping first (`unTone` in `render/painted.js`, the inverse
 of the final pass's curve), so they come out as painted, as Zenith does.
 
 ### Clouds (`weather/cloudField.js`, `render/cloudView.js`)
 
-Zenith's approach, made to fly through: each cloud is a **painted card** (Meridian's golden
-cumulus at golden hour, Helios's white-blue ones under a high sun, Helios's anvil for a storm)
-and a **volume**.
+Zenith's approach, made to fly through: each cloud is a **painted card** (Skytide's golden
+cumulus and storm at golden hour; Helios's white-blue ones and anvil under a high sun until set M
+is made) and a **volume**.
 
 - **Where.** Heaps sit one to a cell of the moving air (towers, heaps and banks; more where the
   pressure is low and with `Cumulus cover`), drift with the wind at their height, and each lives
@@ -103,13 +105,19 @@ and a **volume**.
 - **The volume** is the card's silhouette turned round its upright (`tools/bg/build_painted.py`
   reads each card's outline from its atlas into `world/paintedSets.js`), so the painting and the
   volume agree from every side. It is what shakes you (turbulence) and what the HUD reports.
-- **Flying in.** Within 45 m of a cloud its card thins away; inside, puffs of the painted cloud
-  sea (round windows of its billows, warmed at golden hour) sit on a lattice tied to the world
-  round you, shown where they are inside the cloud, so they stream past as you fly; and the light
-  goes toward the cloud's own colour (a mist, 40% at most, deeper in).
-- **The cloud sea**: Helios's painted sea of cloud, far below at the floor (fall into it and you
-  are gone), drifting, at two sizes blended by a slow noise so its billows never line up, warmed
-  at golden hour, hazed into the horizon.
+- **Flying in.** Within 45 m of a cloud its card thins away; inside, puffs (round windows onto
+  the set's painted cloud sea, its shaded painting low in the cloud) sit on a lattice tied to the
+  world round you, shown where they are inside the cloud, so they stream past as you fly. The
+  deeper in, the more the view goes to a mist (40% at most): the set's painting of the inside of
+  a cloud (lit higher up, in shade low down), about a screen high and turning with the view, so
+  there are big soft billows behind the puffs streaming past. Zenith's sets have no inside
+  paintings: their mist is the cloud's colour, and their puffs are warmed at golden hour.
+- **The cloud sea**: the set's painted sea of cloud, far below at the floor (fall into it and you
+  are gone), drifting, each painting at two sizes blended by a slow noise so its billows never
+  line up, hazed into the horizon. A set of Skytide's own has three paintings of it (dense,
+  broken with the depth showing between the clumps, and in a cloud's shadow) that come and go in
+  wide patches, so it reads as weather rather than one tile repeated. (Helios has one, warmed at
+  golden hour.)
 
 ### Glow (`render/pipeline.js`, the final pass)
 
@@ -177,7 +185,8 @@ an eighth of the frame: about a tenth more on the whole frame.
 The look is judged by eye, in pictures that can be compared: `skytide-test/look-shots.mjs`
 renders the same moment from several cameras (chase, three-quarter left and right, side,
 wide, low; and on the nearest big cloud: `cloudFar`, `cloudNear`, `cloudEdge`, `cloudIn`,
-`cloudDeep`), with `ROOT` for before/after, `ASPECT=4:3` for the screen shape, `WARM` seconds of
+`cloudDeep`; round the sky from the rider: `sun`, `anti`, `joinL` and `joinR` (where the painted
+halves meet) and `sea`, `seaFar`), with `ROOT` for before/after, `ASPECT=4:3` for the screen shape, `WARM` seconds of
 riding first (with `LEAN` held) so the wake has built, `PRE` for any setting (for example
 `window.sandbox.P.sunElevation=55` for midday), and `SEQ` frames at `SEQDT` seconds apart from
 `SEQCAM` for checking motion (a continuous effect must not flicker from frame to frame).
@@ -188,7 +197,8 @@ riding first (with `LEAN` held) so the wake has built, `PRE` for any setting (fo
   procedural flashes and spray (art/fx-sheets).
 - Phase 3: moments (impact frames on big landings, the painted still, title cards, the
   eyecatch); the glow is in.
-- Phase 4: Skytide's own painted skies and clouds per time of day (in place of Zenith's);
-  night, with the streams glowing as aurora.
+- Phase 4: Skytide's own painted skies and clouds per time of day: golden hour is in (set G);
+  midday (M) and night (N) to come, night with the streams glowing as aurora. Stratus decks drawn
+  as decks, with G3's stratus square on top.
 - Phase 5: the rider and board designs (art/model-sheets), replacing the placeholders.
 - A three-quarter camera that swings out on carves so you see your wave.

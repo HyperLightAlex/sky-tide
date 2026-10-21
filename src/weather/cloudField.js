@@ -40,13 +40,14 @@ const SHAPES = Object.fromEntries(SETS.map((n) => [n, sortCards(n)]));
 
 /**
  * The painted set for the light now: Skytide's own for the time of day when it has been
- * made (tools/bg/build_painted.py), otherwise Zenith GP's (Meridian at golden hour, Helios
- * under a high sun).
+ * made (tools/bg/build_painted.py), otherwise Zenith GP's (Helios under a high sun, Meridian
+ * otherwise), or failing that our golden hour.
  */
 export function paintedSetFor(P) {
   const light = P.sunElevation < -3 ? 'night' : P.sunElevation < 28 ? 'golden' : 'midday';
   if (PAINTED_SETS[light]) return light;
-  return light === 'midday' ? 'helios' : 'meridian';
+  if (light === 'midday') return 'helios';
+  return PAINTED_SETS.golden ? 'golden' : 'meridian';
 }
 /** The set whose storm card the storms use (the set's own, or Helios's). */
 export function stormSetFor(P) {

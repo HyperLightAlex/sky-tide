@@ -9,7 +9,7 @@ in exactly Zenith's layouts, so they drop into the same build:
 | 1 Sky | Half the sky, the half facing the sun, unrolled from the horizon (three quarters down) to straight overhead (the top edge); flat haze below the horizon | Half the sky dome, turned so its glow is round the sun; the haze everything fades into takes its colours from it |
 | 1B Sky | The other half, facing away from the sun, joining sheet 1 at both edges (made with sheet 1 attached) | The other half of the dome |
 | 2 Clouds | Six cloud cards on green, 3x2, in a fixed order (below) | Every cloud in the sky is one of these cards, standing on its flat base and turned to face you; its outline, turned round its upright, is the volume you fly into |
-| 3 Cloud surfaces | Six tiling squares, 512 px, 3x2, evenly lit | The sea of cloud far below (1, 2, 5), the puffs you pass through inside a cloud (3, 6), the tops of stratus decks (4) |
+| 3 Cloud surfaces | Six tiling squares, 512 px, 3x2, evenly lit | The sea of cloud far below, in patches (1 dense, 2 broken, 5 shaded), and the puffs you pass inside a cloud (windows onto 1 and 5); the mist deep inside a cloud (3 lit, 6 in shade); the tops of stratus decks (4, later) |
 
 **The cloud cards' order matters.** The game picks cards by shape: towers for the tall heaps,
 banks for the wide ones, and card 4 is always the storm (a cumulonimbus with an anvil). Keep
@@ -26,10 +26,15 @@ references for 2 and 3: attach them as layout only, the style is ours.
 
 ## Status
 
-None made yet.
+Golden hour (G) is made and in the game (2026-10-21). Midday (M) and night (N) are to come; until
+then a high sun uses Zenith's Helios set and night uses G. Image model: not yet recorded.
 
 | Sheet | File | Notes |
 |---|---|---|
+| G1 | `sky-g1-sky.png` | Second of two takes (G1B was made from it; the takes are near-identical; the first is in `alt/`). Horizon at row 763 (asked 768; the builder finds it), flat haze, plain deep blue along the top, the sun's glow at the middle. Its clouds are fanned in perspective toward the sun, which in the round reads as cloud streets running toward the sun. |
+| G1B | `sky-g1b-sky.png` | Used. The model kept G1's cloud layout and repainted the light (rose horizon, no glow), so its clouds do not meet G1's at the edges: the builder overlaps the halves by 160 px and cuts each join through the gaps between clouds. The same fan, facing away, reads as the streets running on to the point opposite the sun. |
+| G2 | `sky-g2-clouds.png` | Used as made: flat key (#02FA02), all six in their cells and in order, flat bases, nothing green in the clouds, no halo. The storm's lower half is lavender-violet rather than dark slate, which suits golden hour. |
+| G3 | `sky-g3-cloud.png` | Second of two takes (the first is in `alt/`): it wraps far better (the first's squares 5 and 6 only repeated when cut to about 320 px). The builder makes each square repeat with a cut where the edges agree. Squares 1, 2 and 5 are the cloud sea (and 1 and 5 the puffs inside a cloud); 3 and 6 are the mist deep inside a cloud: as puffs they were too soft to read against it. 4 (stratus tops) waits for stratus decks to be drawn as decks. |
 
 ## Golden hour (G)
 

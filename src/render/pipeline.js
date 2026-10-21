@@ -156,6 +156,7 @@ export class SkyPipeline {
         tComp: { value: this.compRT.texture }, uExposure: this.exposure, uMist: { value: 0 }, uMistColor: { value: new THREE.Color(1, 1, 1) },
         tGlow: { value: this.glowQ2.texture }, tGlowWide: { value: this.glowE2.texture }, uGlow: { value: 1 },
         tDepth: { value: this.depth }, uSunGlow: { value: 1 }, uSunColor: common.uSunColor, uSunUv: { value: new THREE.Vector2(-9, -9) }, uAspect: { value: new THREE.Vector2(1, 1) },
+        tMist: { value: null }, tMistShade: { value: null }, uMistTex: { value: 0 }, uMistUv: { value: new THREE.Vector4(0, 0, 1, 1) },
       },
       depthTest: false, depthWrite: false,
     });
@@ -298,6 +299,16 @@ export class SkyPipeline {
     const fu = this.finalMat.uniforms;
     fu.uMist.value = mist ? mist.amount : 0;
     if (mist) fu.uMistColor.value.setRGB(unToneJS(mist.color.r, P.exposure), unToneJS(mist.color.g, P.exposure), unToneJS(mist.color.b, P.exposure));
+    // The mist's painting: a square about the height of the screen, turned with the view (its
+    // offset goes round a whole number of times in a full turn, so it never jumps).
+    const mt = mist && mist.tex;
+    fu.uMistTex.value = mt ? 1 : 0;
+    if (mt) {
+      fu.tMist.value = mist.tex; fu.tMistShade.value = mist.texShade || mist.tex;
+      const d = camera.getWorldDirection(this._md || (this._md = new THREE.Vector3()));
+      const k = 5 / (2 * Math.PI);
+      fu.uMistUv.value.set(Math.atan2(d.x, -d.z) * k, Math.asin(Math.max(-1, Math.min(1, d.y))) * k, 0.95, mist.lit ?? 1);
+    }
     su.uRideThr.value = rideThr;
     su.uBaseThr.value = P.rideThreshold;
     su.uSkinOpacity.value = P.skinOpacity;

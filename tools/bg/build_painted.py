@@ -11,12 +11,17 @@ sky-g2-clouds.png, sky-g3-cloud.png for golden hour; m for midday, n for night).
 the game uses Zenith GP's sets in assets/painted (Meridian at golden hour, Helios under a high
 sun), listed here as they are. Run it again after replacing a sheet.
 
-The cutting is Zenith GP's (tools/bg/build_backgrounds.py there), unchanged:
-- Sky: the sun-side half and the half facing away side by side, their colours matched across
-  both joins, resampled so the horizon sits on a fixed row; horizon to zenith.
+The cutting is Zenith GP's (tools/bg/build_backgrounds.py there), with better joins:
+- Sky: the sun-side half and the half facing away side by side, resampled so the horizon sits
+  on a fixed row; horizon to zenith. An image model cannot paint two halves whose clouds meet,
+  so the halves overlap a little at both joins (OVERLAP), their colours are matched there, and
+  each join is a cut that winds down through the overlap where the two paintings agree best
+  (the gaps between clouds), not a straight line.
 - Clouds: each cloud cut out of the green by its own outline (grouped by the cell of the sheet
   its middle falls in) and packed into an atlas, in the sheet's cell order.
-- Surfaces: each square cut to the length that wraps best both ways, its seams blended.
+- Surfaces: each square made to repeat by the same kind of cut: the columns past its end are
+  laid over its start and cut where they agree, then the rows; the length is the one whose cut
+  agrees best. (Zenith cross-faded 16 px, which ghosts billows into a blurred band.)
 """
 import json
 import os
@@ -33,6 +38,7 @@ ROWS = 32   # outline rows per card
 
 # The sky texture: SKY_W x SKY_H, the horizon HAZE rows above the bottom.
 SKY_W, SKY_H, HAZE = 3072, 768, 24
+OVERLAP = 160   # px of a 1536 px half by which the halves overlap at each join
 
 # The cloud-surface squares, in sheet order.
 TILES = ['cloudsea', 'cloudsea-broken', 'puffs', 'stratus', 'cloudsea-shade', 'puffs-shade']
@@ -106,16 +112,73 @@ def edge_colour(img, side, n=40):
     return np.concatenate([sky, haze], 0)
 
 
-def match_joins(a, b, band=320):
-    """Shift b's colours near both its edges to meet a's (a | b, wrapping round)."""
+def match_joins(a, b, band=320, n=40):
+    """Shift b's colours near both its edges to meet a's (a | b, wrapping round), comparing the
+    n columns at each join (the overlap, where the two show the same part of the sky)."""
     b = b.copy()
     w = b.shape[1]
     ramp = (1 - np.arange(band) / band)[None, :, None]
-    d1 = edge_colour(a, 'right') - edge_colour(b, 'left')
+    d1 = edge_colour(a, 'right', n) - edge_colour(b, 'left', n)
     b[:, :band] += d1[:, None, :] * ramp
-    d2 = edge_colour(a, 'left') - edge_colour(b, 'right')
+    d2 = edge_colour(a, 'left', n) - edge_colour(b, 'right', n)
     b[:, w - band:] += (d2[:, None, :] * ramp)[:, ::-1]
     return b
+
+
+def min_cut(e):
+    """The path down an error map (rows x columns) with the least total error, moving at most
+    one column a row: the column each row is cut at, and the path's mean error."""
+    H, W = e.shape
+    cost = e.astype(np.float64).copy()
+    back = np.zeros((H, W), np.int8)
+    cols = np.arange(W)
+    for y in range(1, H):
+        prev = cost[y - 1]
+        st = np.stack([np.r_[np.inf, prev[:-1]], prev, np.r_[prev[1:], np.inf]])
+        k = np.argmin(st, 0)
+        cost[y] += st[k, cols]
+        back[y] = k - 1
+    path = np.zeros(H, int)
+    path[-1] = int(np.argmin(cost[-1]))
+    for y in range(H - 1, 0, -1):
+        path[y - 1] = path[y] + back[y, path[y]]
+    return path, float(cost[-1].min()) / H
+
+
+def cut_join(A, B, centre=0.15, feather=1.5):
+    """Join A (on the left) to B (on the right) across the columns they share: each row takes A
+    up to the cut and B after it, the cut being the path where they agree best (a little drawn
+    to the middle, so it does not hug an edge), feathered a pixel or two."""
+    H, W = A.shape[:2]
+    e = ((ndimage.gaussian_filter(A, (1, 1, 0)) - ndimage.gaussian_filter(B, (1, 1, 0))) ** 2).sum(-1)
+    x = np.linspace(-1, 1, W)[None, :]
+    e = e + centre * e.mean() * x ** 2
+    path, err = min_cut(e)
+    m = (np.arange(W)[None, :] < path[:, None]).astype(np.float32)
+    m = ndimage.gaussian_filter1d(m, feather, axis=1, mode='nearest')[..., None]
+    return A * m + B * (1 - m), err
+
+
+def build_sky(spec):
+    halves = [load(n) for n in spec['sky']]
+    half = SKY_W // 2
+    a, hz = sky_half(halves[0], half)
+    sun = sun_column(halves[0], hz) / halves[0].shape[1] * half
+    if len(halves) > 1:
+        ov = OVERLAP
+        b, _ = sky_half(halves[1], half)
+        b = match_joins(a, b, spec.get('join_band', 320), n=ov)
+        # a's end and b's start show the same sky, as do b's end and a's start.
+        j1, _ = cut_join(a[:, -ov:], b[:, :ov])
+        j2, _ = cut_join(b[:, -ov:], a[:, :ov])
+        strip = np.concatenate([j2, a[:, ov:-ov], j1, b[:, ov:-ov]], 1)
+        u = sun / strip.shape[1]
+        im = Image.fromarray((np.clip(strip, 0, 1) * 255 + 0.5).astype(np.uint8)).resize((SKY_W, SKY_H), Image.LANCZOS)
+        pano = np.asarray(im).astype(np.float32) / 255
+    else:
+        pano = soften_seams(np.concatenate([a, a], 1), [0, half])
+        u = sun / SKY_W
+    return np.clip(pano, 0, 1), u
 
 
 def soften_seams(p, xs, r=10):
@@ -129,20 +192,6 @@ def soften_seams(p, xs, r=10):
         k = np.exp(-((np.arange(len(idx)) - r * 3) / r) ** 2)[None, :, None]
         p[:, idx] = seg * (1 - k) + blurred * k
     return p
-
-
-def build_sky(spec):
-    halves = [load(n) for n in spec['sky']]
-    a, hz = sky_half(halves[0], SKY_W // 2)
-    sun = sun_column(halves[0], hz) / halves[0].shape[1] * 0.5
-    if len(halves) > 1:
-        b, _ = sky_half(halves[1], SKY_W // 2)
-        b = match_joins(a, b, spec.get('join_band', 320))
-    else:
-        b = a.copy()
-    pano = np.concatenate([a, b], 1)
-    pano = soften_seams(pano, [0, SKY_W // 2])
-    return np.clip(pano, 0, 1), sun
 
 
 # ---- keyed sheets ------------------------------------------------------------
@@ -293,24 +342,27 @@ def build_clouds(spec):
 
 # ---- surfaces ------------------------------------------------------------------
 
-def best_len(t, axis, lo=320):
-    first = np.take(t, 0, axis=axis)
-    return min((np.abs(np.take(t, L, axis=axis) - first).mean(), L) for L in range(lo, t.shape[axis]))[1]
-
-
-def fade(t, axis, ov=16):
-    t = np.moveaxis(t, axis, 0).copy()
-    n = t.shape[0]
-    w = np.linspace(0, 1, ov)[:, None, None]
-    t[:ov] = t[:ov] * w + t[n - ov:] * (1 - w)
-    return np.moveaxis(t[:n - ov], 0, axis)
+def wrap_cut(t, axis, ov=64, shorten=96):
+    """Make t repeat along one axis: of the lengths n it could repeat at, the one whose next
+    columns (n .. n+ov) and first columns (0 .. ov) agree best along a cut; those two are joined
+    at the cut and laid over its start."""
+    t = np.moveaxis(t, axis, 1)
+    W = t.shape[1]
+    best = None
+    for n in range(W - ov - shorten, W - ov + 1, 4):
+        e = ((t[:, n:n + ov] - t[:, :ov]) ** 2).sum(-1)
+        err = min_cut(e)[1]
+        if best is None or err < best[0]:
+            best = (err, n)
+    n = best[1]
+    out = t[:, :n].copy()
+    out[:, :ov], _ = cut_join(t[:, n:n + ov], t[:, :ov], centre=0.3, feather=1.0)
+    return np.moveaxis(out, 1, axis)
 
 
 def seamless(t):
-    t = t[:, :best_len(t, 1)]
-    t = t[:best_len(t, 0)]
-    t = fade(fade(t, 1), 0)
-    im = Image.fromarray((np.clip(t, 0, 1) * 255).astype(np.uint8)).resize((512, 512), Image.LANCZOS)
+    t = wrap_cut(wrap_cut(t, 1), 0)
+    im = Image.fromarray((np.clip(t, 0, 1) * 255 + 0.5).astype(np.uint8)).resize((512, 512), Image.LANCZOS)
     return np.asarray(im).astype(np.float32) / 255
 
 
@@ -342,6 +394,11 @@ def outline(img, c):
         else:
             hw.append(round((xs[-1] - xs[0] + 1) / 2 / cw, 4))
             cx.append(round(((xs[0] + xs[-1] + 1) / 2 - cw / 2) / cw, 4))
+    # A short card's lowest row can fall in the soft edge under its base: it stands on the
+    # first solid row above.
+    for i in range(ROWS // 4, -1, -1):
+        if hw[i] == 0 and hw[i + 1] > 0:
+            hw[i], cx[i] = hw[i + 1], cx[i + 1]
     return hw, cx
 
 
